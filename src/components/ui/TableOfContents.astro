@@ -10,7 +10,7 @@ const { toc = [] }: TOCProps = Astro.props
     <ul class="toc-list" id="toc-list">
       <!-- Back to top link -->
       <li class="toc-item toc-level-0">
-        <a href="#" class="toc-link toc-title" title="Back to top" data-text="Back to top">
+        <a href="#" class="toc-link toc-title" data-text="Back to top">
           {' '}
           Back to top{' '}
         </a>
@@ -19,7 +19,7 @@ const { toc = [] }: TOCProps = Astro.props
       <!-- TOC items -->
       {toc.map((item) => (
         <li class={`toc-item toc-level-${item.level}`}>
-          <a href={`#${item.id}`} class="toc-link" title={item.text} data-text={item.text}>
+          <a href={`#${item.id}`} class="toc-link" data-text={item.text}>
             {item.text}
           </a>
         </li>
@@ -56,7 +56,9 @@ const { toc = [] }: TOCProps = Astro.props
       resetTimeout: null,
       activeLink: null,
       activeId: null,
-      hasContent: false
+      hasContent: false,
+      expanded: false,
+      hoveredIndex: -1
     }
 
     // Initialize DOM elements
@@ -98,6 +100,7 @@ const { toc = [] }: TOCProps = Astro.props
     function adjustPosition() {
       if (!state.container || !centeredLayout || !state.hasContent) {
         if (state.container) state.container.style.display = 'none'
+        clearExpanded()
         return
       }
 
@@ -116,6 +119,7 @@ const { toc = [] }: TOCProps = Astro.props
         state.container.style.display = 'none'
         state.container.classList.remove('fixed-position')
         state.container.style.left = ''
+        clearExpanded()
       }
     }
 
@@ -164,6 +168,60 @@ const { toc = [] }: TOCProps = Astro.props
       state.activeLink = nextActiveLink
     }
 
+    // Collapse the full-title preview.
+    function clearExpanded() {
+      if (state.container) {
+        state.container.classList.remove('expanded')
+      }
+
+      state.linkList.forEach((link) => {
+        link.classList.remove('is-hovered')
+        link.style.removeProperty('--toc-delay')
+        link.style.removeProperty('--toc-shift')
+      })
+
+      state.expanded = false
+      state.hoveredIndex = -1
+    }
+
+    // Show every title, staggered outward from the hovered line.
+    function expandAt(index) {
+      if (!state.container) return
+      if (state.expanded && state.hoveredIndex === index) return
+
+      state.expanded = true
+      state.hoveredIndex = index
+      state.container.classList.add('expanded')
+
+      state.linkList.forEach((link, i) => {
+        link.classList.toggle('is-hovered', i === index)
+        link.style.setProperty('--toc-delay', `${Math.abs(i - index) * 26}ms`)
+        link.style.setProperty('--toc-shift', `${i < index ? -4 : 4}px`)
+      })
+    }
+
+    function handlePointerMove(event) {
+      if (!state.container) return
+
+      const target = event.target
+      if (!(target instanceof Element)) return
+
+      const link = target.closest('.toc-link')
+      if (!link || !state.container.contains(link)) {
+        clearExpanded()
+        return
+      }
+
+      // The line indicators occupy the first 1.75rem; add a small tolerance.
+      const rect = link.getBoundingClientRect()
+      if (event.clientX - rect.left <= 2 * 16) {
+        const index = state.linkList.indexOf(link)
+        if (index !== -1) expandAt(index)
+      } else {
+        clearExpanded()
+      }
+    }
+
     function refreshActiveHeading() {
       if (!state.headingList.length) {
         setActive(null)
@@ -204,6 +262,8 @@ const { toc = [] }: TOCProps = Astro.props
 
         if (state.container) {
           state.container.addEventListener('click', handleClick)
+          state.container.addEventListener('pointermove', handlePointerMove)
+          state.container.addEventListener('pointerleave', clearExpanded)
         }
 
         refreshActiveHeading()
@@ -232,7 +292,11 @@ const { toc = [] }: TOCProps = Astro.props
 
       if (state.container) {
         state.container.removeEventListener('click', handleClick)
+        state.container.removeEventListener('pointermove', handlePointerMove)
+        state.container.removeEventListener('pointerleave', clearExpanded)
       }
+
+      clearExpanded()
 
       if (state.scrollFrame) {
         cancelAnimationFrame(state.scrollFrame)
@@ -258,7 +322,9 @@ const { toc = [] }: TOCProps = Astro.props
         scrollFrame: null,
         activeLink: null,
         activeId: null,
-        hasContent: false
+        hasContent: false,
+        expanded: false,
+        hoveredIndex: -1
       })
     }
 
@@ -352,11 +418,11 @@ const { toc = [] }: TOCProps = Astro.props
     text-decoration: none;
     position: relative;
     padding-left: 0;
-    height: 1.125rem;
+    height: 1.4rem;
     width: 100%;
-    min-height: 1rem;
+    min-height: 1.4rem;
     font-size: 0;
-    line-height: 1.125rem;
+    line-height: 1.4rem;
     text-indent: 2rem;
     overflow: hidden;
     white-space: nowrap;
@@ -376,12 +442,15 @@ const { toc = [] }: TOCProps = Astro.props
     font-family: var(--sans);
     font-size: var(--font-size-s);
     letter-spacing: var(--spacing-m);
-    line-height: 1.125rem;
+    line-height: 1.4rem;
     color: var(--text-primary);
     opacity: 0;
+    transform: translateY(var(--toc-shift, 4px));
     transition:
-      opacity 0.2s ease-out,
-      left 0.2s ease-out;
+      opacity 0.15s ease-out,
+      left 0.15s ease-out,
+      transform 0.15s ease-out,
+      color 0.15s ease-out;
     pointer-events: none;
     overflow: hidden;
     white-space: nowrap;
@@ -392,9 +461,50 @@ const { toc = [] }: TOCProps = Astro.props
   .toc-link:hover::after {
     opacity: 1;
     left: -0.75rem;
+    transform: translateY(0);
   }
 
   .toc-level-0 .toc-link:hover::after {
+    opacity: 0;
+  }
+
+  /* Hovering the line indicators expands every title in a floating panel. */
+  .toc-container.expanded {
+    box-sizing: border-box;
+    width: 26rem;
+    max-width: calc(100vw - 3rem);
+    padding-right: 1.5rem;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--bg) 80%, transparent) 0%,
+      color-mix(in srgb, var(--bg) 80%, transparent) 70%,
+      color-mix(in srgb, var(--bg) 52%, transparent) 88%,
+      transparent 100%
+    );
+    -webkit-backdrop-filter: blur(7px);
+    backdrop-filter: blur(7px);
+    transition:
+      width 0.16s ease-out,
+      opacity 0.16s ease-out;
+  }
+
+  .toc-container.expanded .toc-link::after {
+    left: 2.875rem;
+    max-width: calc(100% - 2.875rem);
+    text-indent: 0;
+    opacity: 1;
+    color: var(--text-secondary);
+    transform: translateY(0);
+    transition-delay: var(--toc-delay, 0ms);
+  }
+
+  .toc-container.expanded .toc-link.active::after,
+  .toc-container.expanded .toc-link.is-hovered::after {
+    color: var(--text-primary);
+  }
+
+  /* "Back to top" stays a line-only control. */
+  .toc-container.expanded .toc-level-0 .toc-link::after {
     opacity: 0;
   }
 
@@ -430,6 +540,14 @@ const { toc = [] }: TOCProps = Astro.props
   .toc-link.active::before {
     opacity: 0.8;
     background-color: var(--text-primary);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toc-container.expanded,
+    .toc-link::after {
+      transition-duration: 0.01ms !important;
+      transition-delay: 0ms !important;
+    }
   }
 
   /* Hide on mobile */

@@ -22,6 +22,13 @@
 
 .prose .title h1 {
   margin: 0 0 0.375rem 0;
+  font-size: 1.875rem;
+}
+
+/* Post date: smaller and aligned to the right edge of the content column. */
+.prose .title .date {
+  font-size: var(--font-size-s);
+  text-align: right;
 }
 
 /* Optional subtitle shown beneath the post title */

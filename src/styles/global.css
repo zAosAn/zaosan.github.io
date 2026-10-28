@@ -243,3 +243,32 @@ html.astigmatism
   ) {
   filter: url(#astigmatism-blur);
 }
+
+/* Fixed film-grain layer, below the content but above the page background. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url('/textures/film-grain.png') repeat;
+  background-size: 160px 160px;
+  opacity: 0.045;
+  mix-blend-mode: multiply;
+}
+
+.layout-wrapper {
+  position: relative;
+  z-index: 1;
+}
+
+html.dark body::before {
+  opacity: 0.05;
+  mix-blend-mode: screen;
+}
+
+@media print {
+  body::before {
+    display: none;
+  }
+}

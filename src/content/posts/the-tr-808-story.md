@@ -1,77 +1,77 @@
 ---
-title: 'The TR-808 Story'
+title: 'TR-808 的故事'
 pubDate: '2025-05-10'
 ---
 
 ![_tr-808](./_assets/tr-808.webp)
 
-The Roland TR-808 Rhythm Composer, often simply called the "808," is one of the most influential electronic instruments ever created. Despite its initial commercial failure, this drum machine went on to shape entire genres of music and become a cultural icon. This is the story of how a machine designed to replace drummers ended up revolutionizing music production.
+Roland TR-808 Rhythm Composer（通常简称“808”）是有史以来最具影响力的电子乐器之一。尽管最初在商业上遭遇失败，这台鼓机后来却塑造了整整几类音乐风格，并成为一种文化符号。这是一个关于一台本意是取代鼓手的机器，如何最终彻底改变音乐制作的故事。
 
-## The Birth of the 808
+## 808 的诞生
 
-In the late 1970s, Roland Corporation was looking to create an affordable drum machine that could compete with the expensive Linn LM-1, which was the first drum machine to use digital samples. The company's engineers, led by **Ikutaro Kakehashi**, set out to create something different—a machine that would use **analog synthesis** to generate drum sounds rather than digital samples.
+20 世纪 70 年代末，Roland 公司希望打造一台价格亲民的鼓机，以与昂贵的 Linn LM-1 竞争——后者是第一台使用数字采样的鼓机。在 **Ikutaro Kakehashi** 的带领下，公司工程师们决心做出不一样的东西：一台使用**模拟合成**而非数字采样来生成鼓声的机器。
 
-The development team faced several challenges:
+开发团队面临若干挑战：
 
-1. **Cost constraints** - The machine needed to be affordable for home musicians
-2. **Sound design** - Creating realistic drum sounds using only analog circuits
-3. **User interface** - Making it intuitive for musicians to program rhythms
+1. **成本限制** —— 这台机器必须让家庭音乐人负担得起
+2. **音色设计** —— 仅用模拟电路创造逼真的鼓声
+3. **用户界面** —— 让音乐人能够直观地编排节奏
 
 > "We wanted to create something that would make drummers obsolete, but instead we created something that made everyone want to be a drummer." — Ikutaro Kakehashi
 
-## The "Failed" Launch
+## “失败”的发布
 
-When the TR-808 was released in 1980, it was met with **disappointing sales**. The machine cost \$1,195 (approximately \$4,000 in today's dollars) and was criticized for its "unrealistic" drum sounds. Professional studios preferred the more expensive Linn LM-1, which used actual drum samples.
+1980 年 TR-808 上市时，销量**令人失望**。这台机器售价 1,195 美元（约合今天的 4,000 美元），并因“不真实”的鼓声而受到批评。专业录音棚更青睐价格更高、使用真实鼓组采样的 Linn LM-1。
 
-The 808's analog sounds were considered too electronic and artificial:
+808 的模拟音色被认为过于电子化、过于人造：
 
-- The kick drum was too boomy and lacked the punch of real drums
-- The snare had a distinctive "clap" sound that sounded nothing like a real snare
-- The hi-hats were metallic and harsh
-- The toms had a characteristic "boing" sound
+- 底鼓过于沉闷，缺少真实鼓组的冲击力
+- 军鼓带有独特的“拍手”声，听起来完全不像真实的军鼓
+- 踩镲金属感强且刺耳
+- 通鼓有一种标志性的“boing”声
 
-Roland discontinued the TR-808 in 1983 after selling only about **12,000 units**, considering it a commercial failure.
+1983 年，Roland 在仅售出约 **12,000 台**后停产了 TR-808，并将其视为一次商业失败。
 
-## The Hip-Hop Revolution
+## 嘻哈革命
 
-The TR-808's fortunes changed dramatically when **hip-hop producers** discovered its unique sound. In the early 1980s, young producers in New York, particularly in the Bronx, began experimenting with the machine.
+当**嘻哈制作人**发现 808 独特的声音后，它的命运发生了戏剧性转变。20 世纪 80 年代初，纽约——尤其是布朗克斯区——的年轻制作人开始用这台机器做实验。
 
-Key early adopters included **Afrika Bambaataa** who used the 808 on "Planet Rock" (1982), **Marley Marl** who pioneered the use of 808 kicks in hip-hop, **Rick Rubin** who incorporated 808 sounds in early Def Jam recordings, and **The Bomb Squad** who used 808s extensively in Public Enemy's production.
+早期的关键拥趸包括：在《Planet Rock》（1982）中使用 808 的 **Afrika Bambaataa**；开创嘻哈中 808 底鼓用法的 **Marley Marl**；在早期 Def Jam 唱片中融入 808 音色的 **Rick Rubin**；以及在 Public Enemy 的制作中大量使用 808 的 **The Bomb Squad**。
 
-The 808's distinctive kick drum became the foundation of hip-hop's rhythmic backbone. Its deep, resonant bass sound could shake entire neighborhoods when played through powerful sound systems.
+808 标志性的底鼓成为嘻哈节奏骨架的根基。它深沉、共鸣强烈的低频，通过大功率音响播放时足以震动整个街区。
 
-## The Miami Bass Phenomenon
+## 迈阿密贝斯现象
 
-In the mid-1980s, the TR-808 found another home in **Miami**, where it became the centerpiece of a new genre called **Miami Bass** or **Booty Bass**. Producers like **2 Live Crew** made the 808 kick drum the star of their tracks, **DJ Magic Mike** created entire albums built around 808 patterns, and **Luke Skyywalker** used 808s to create the signature Miami sound.
+20 世纪 80 年代中期，TR-808 在**迈阿密**找到了另一个归宿，成为名为 **Miami Bass**（或称 **Booty Bass**）的新流派的核心。**2 Live Crew** 等制作人让 808 底鼓成为作品的主角，**DJ Magic Mike** 围绕 808 节奏做出了整张专辑，**Luke Skyywalker** 则用 808 打造出迈阿密的标志性声音。
 
-The 808's ability to produce extremely low frequencies made it perfect for the car audio culture that was emerging in Miami, where bass-heavy music became a status symbol.
+808 能够产生极低频，这使它非常适合迈阿密兴起的汽车音响文化——在那里，低音强劲的音乐成了一种身份的象征。
 
-## Electronic Music and Dance
+## 电子音乐与舞曲
 
-The TR-808's influence extended far beyond hip-hop. In the late 1980s and early 1990s, it became essential in house music and techno. **Frankie Knuckles** and **Marshall Jefferson** used 808s in early Chicago house, while the machine's hi-hats and claps became signature sounds of house music. Its programmable sequencer allowed for complex rhythmic patterns.
+TR-808 的影响远远超出了嘻哈。20 世纪 80 年代末至 90 年代初，它成为浩室与科技舞曲中不可或缺的存在。**Frankie Knuckles** 和 **Marshall Jefferson** 在早期芝加哥浩室中使用了 808，而这台机器的踩镲与拍手声则成为浩室的标志性音色。它的可编程音序器让复杂的节奏型成为可能。
 
-In techno music, **Juan Atkins**, **Derrick May**, and **Kevin Saunderson** (the Belleville Three) incorporated 808s into Detroit techno. The machine's futuristic sounds fit perfectly with techno's robotic aesthetic, and its affordability made it accessible to bedroom producers.
+在科技舞曲中，**Juan Atkins**、**Derrick May** 和 **Kevin Saunderson**（即 Belleville Three）将 808 融入底特律科技舞曲。这台机器的未来感音色与科技舞曲的机械美学完美契合，而其亲民的价格也使卧室制作人能够用得起。
 
-## The 808 in Modern Music
+## 现代音乐中的 808
 
-Even today, the TR-808 continues to influence music production through software emulations and hardware reissues. **Roland Cloud** offers the official software version of the 808, **Native Instruments** includes 808 samples in their libraries, and **Ableton Live** features 808-inspired drum racks.
+即使在今天，TR-808 仍通过软件模拟和硬件复刻持续影响着音乐制作。**Roland Cloud** 提供 808 的官方软件版本，**Native Instruments** 在音色库中收录了 808 采样，**Ableton Live** 也内置了以 808 为灵感的鼓机架。
 
-Hardware reissues include the **Roland TR-08** boutique series reissue, the **Roland TR-8S** modern drum machine with 808 sounds, and the **Behringer RD-8** affordable clone of the original.
+硬件复刻包括 **Roland TR-08** 的 Boutique 系列复刻版、搭载 808 音色的现代鼓机 **Roland TR-8S**，以及平价原版克隆 **Behringer RD-8**。
 
-## Cultural Impact
+## 文化影响
 
-The TR-808 has transcended its role as a musical instrument to become a **cultural symbol**. It has influenced fashion with 808-inspired clothing and accessories, art with visual artists incorporating 808 imagery in their work, film through documentaries and movies about the machine's impact, and literature with books and articles celebrating its legacy.
+TR-808 已超越乐器的角色，成为一种**文化符号**。它影响了时尚——出现了以 808 为灵感的服装与配饰；影响了艺术——视觉艺术家将 808 意象融入作品；影响了电影——出现了讲述这台机器影响力的纪录片与影片；也影响了文学——有书籍和文章赞颂它的传奇。
 
 > "The 808 didn't just change music—it changed culture. It gave a voice to communities that didn't have access to expensive studio equipment." — Questlove
 
-## The Enduring Legacy
+## 不朽的遗产
 
-The Roland TR-808's story is a perfect example of how **failure can lead to innovation**. What was initially considered a commercial flop became one of the most important musical instruments of the 20th century.
+Roland TR-808 的故事是**失败如何催生创新**的绝佳范例。最初被视为商业败笔的它，后来成为 20 世纪最重要的乐器之一。
 
-Key lessons from the 808 story include embracing imperfection (the 808's "flaws" became its greatest strengths), understanding that accessibility matters (affordable tools can democratize music creation), recognizing that community adoption is crucial (users often find creative applications designers never imagined), and appreciating that timeless design remains relevant for decades.
+808 的故事带来的关键启示包括：拥抱不完美（808 的“缺陷”成了它最大的优势）；理解易得性的重要（平价的工具可以让音乐创作大众化）；认识到社群接纳至关重要（用户常常能找到设计师从未想象过的创造性用法）；以及珍视历久弥新的设计在数十年后依然不过时。
 
-The TR-808's influence continues to grow, proving that sometimes the most revolutionary innovations come from unexpected places. From its humble beginnings as a "failed" drum machine to its status as a cultural icon, the 808 has truly earned its place in music history.
+TR-808 的影响力仍在不断扩大，证明有时最具革命性的创新恰恰来自意想不到的地方。从一台“失败”鼓机的卑微起点，到成为文化符号，808 真正在音乐史上赢得了自己的位置。
 
 ---
 
-_The TR-808 may have been discontinued in 1983, but its beat goes on, inspiring new generations of musicians and producers to create the music of tomorrow._
+_TR-808 也许在 1983 年就已停产，但它的节拍仍在继续，激励着一代又一代音乐人和制作人去创造明天的音乐。_

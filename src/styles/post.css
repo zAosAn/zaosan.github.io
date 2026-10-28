@@ -24,6 +24,41 @@
   margin: 0 0 0.375rem 0;
 }
 
+/* Optional subtitle shown beneath the post title */
+.prose .title .subtitle {
+  margin: 0 0 0.75rem 0;
+  color: var(--text-secondary);
+  font-size: 0.95em;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+}
+
+/* Bilingual post layout: English original with a gray Chinese translation */
+.prose .section-zh {
+  display: inline-block;
+  margin-left: 0.45em;
+  color: var(--text-secondary);
+  font-size: 0.9em;
+  font-weight: var(--font-weight-regular);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.prose .translation {
+  margin-top: -0.875em;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+}
+
+.prose .translator-note {
+  margin-top: -0.5em;
+  color: var(--text-secondary);
+  font-size: var(--font-size-s);
+  line-height: 1.7;
+  opacity: 0.9;
+}
+
 /* Headings (h1-h5)
  Adjust size or spacing below if needed. */
 .prose h1,

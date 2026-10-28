@@ -1,6 +1,6 @@
 ---
-title: 'Draft Example'
+title: '草稿示例'
 pubDate: '2025-07-09'
 ---
 
-Start the filename with `_` to mark it as a draft and hide it from the list.
+将文件名以下划线 `_` 开头，即可将其标记为草稿，并从列表中隐藏。

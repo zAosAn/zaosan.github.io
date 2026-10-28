@@ -1,9 +1,9 @@
 ---
-title: 'Embedded Content'
+title: '嵌入内容'
 pubDate: '2025-06-06'
 ---
 
-Use these directives to embed media:
+使用以下指令嵌入媒体：
 
 ```
 ::link{url="https://xxxxx.xxx"}
@@ -28,7 +28,7 @@ When embedded content is still loading,
 the table of contents positioning may be inaccurate.
 ```
 
-## Link Card
+## 链接卡片
 
 ::link{url="https://pitchfork.com/reviews/albums/ichiko-aoba-luminescent-creatures/"}
 
@@ -62,11 +62,11 @@ Restart `pnpm dev` for the change to take effect.
 
 ::github{repo="the3ash/astro-chiri"}
 
-## X Post
+## X 帖子
 
 ::x{url="https://x.com/DAVID_LYNCH/status/1174367510893752321"}
 
-## NeoDB (CN Only)
+## NeoDB（仅限中国）
 
 ::neodb{url="https://neodb.social/album/5nD3R8gmnVlsoOBdyO8PA3"}
 

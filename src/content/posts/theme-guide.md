@@ -1,22 +1,22 @@
 ---
-title: 'Theme Guide'
+title: '主题指南'
 pubDate: '2025-07-10'
 ---
 
-Chiri is a minimal blog theme built with [Astro](https://astro.build), offering customization options while preserving its clean aesthetic.
+Chiri 是一个使用 [Astro](https://astro.build) 构建的极简博客主题，在保持简洁美学的同时提供多种自定义选项。
 
 ---
 
-## Basic Commands
+## 基本命令
 
-- `pnpm new <title>` - Create a new post (use `_title` for drafts)
-- `pnpm update-theme` - Update the theme to the latest version
+- `pnpm new <title>` - 创建一篇新文章（标题前加 `_` 可创建草稿）
+- `pnpm update-theme` - 将主题更新到最新版本
 
-## Main Files & Directories
+## 主要文件与目录
 
-- `src/content/about/about.md` - Edit the about section of the index page. Leave it empty if you don't want any content.
-- `src/content/posts/` - All blog posts are stored here
-- `src/config.ts` - Configure main site info and settings
+- `src/content/about/about.md` - 编辑首页的“关于”部分。若不想显示任何内容，请将其留空。
+- `src/content/posts/` - 所有博客文章都存放在这里
+- `src/config.ts` - 配置站点主要信息与设置
 
 ```ts
 // Site Info
@@ -62,9 +62,9 @@ post: {
 }
 ```
 
-## Post Frontmatter
+## 文章 Frontmatter
 
-Only `title` and `pubDate` are required fields
+只有 `title` 和 `pubDate` 是必填字段
 
 ```ts
 ---
@@ -73,11 +73,11 @@ pubDate: '2025-07-10'
 ---
 ```
 
-## Syntax Highlighting
+## 语法高亮
 
-You can configure the theme via `shikiConfig` in `astro.config.ts`.
+你可以在 `astro.config.ts` 中通过 `shikiConfig` 配置主题。
 
-More details: [Syntax Highlighting | Astro Docs](https://docs.astro.build/en/guides/syntax-highlighting/)
+更多详情：[语法高亮 | Astro 文档](https://docs.astro.build/en/guides/syntax-highlighting/)
 
 ```ts
 import { defineConfig } from 'astro/config'
@@ -95,16 +95,16 @@ export default defineConfig({
 
 ---
 
-## Preview of Some Features
+## 部分功能预览
 
-![Theme Toggle](./_assets/theme-toggle.webp)
+![主题切换](./_assets/theme-toggle.webp)
 
-![Dotted Divider](./_assets/dotted-divider.webp)
+![点状分隔线](./_assets/dotted-divider.webp)
 
-![Date on Left Side](./_assets/date-on-left.webp)
+![左侧日期](./_assets/date-on-left.webp)
 
-![Table of Contents](./_assets/toc.webp)
+![目录](./_assets/toc.webp)
 
-![Reading Time](./_assets/reading-time.webp)
+![阅读时长](./_assets/reading-time.webp)
 
-![Copy Code](./_assets/copy-code.webp)
+![复制代码](./_assets/copy-code.webp)

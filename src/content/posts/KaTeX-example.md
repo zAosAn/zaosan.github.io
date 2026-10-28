@@ -1,16 +1,16 @@
 ---
-title: 'KaTeX Examples'
+title: 'KaTeX 示例'
 pubDate: '2025-05-19'
 ---
 
-This theme includes built-in KaTeX support for rendering mathematical expressions in your content.
+本主题内置 KaTeX 支持，可在内容中渲染数学表达式。
 
 ---
 
-## Examples
+## 示例
 
-- Inline math: $E = mc^2$
-- Block math:
+- 行内公式：$E = mc^2$
+- 块级公式：
 
 $$
 \begin{equation}
@@ -44,6 +44,6 @@ $$
 
 ---
 
-## Ref
+## 参考
 
-- [KaTeX Documentation](https://katex.org/docs/supported.html)
+- [KaTeX 文档](https://katex.org/docs/supported.html)

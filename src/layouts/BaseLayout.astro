@@ -2,6 +2,7 @@
 import { themeConfig } from '@/config'
 import { ClientRouter } from 'astro:transitions'
 import ThemeManager from '@/components/ui/ThemeManager.astro'
+import AstigmatismFilter from '@/components/ui/AstigmatismFilter.astro'
 import TransitionWrapper from '@/components/layout/TransitionWrapper.astro'
 import type { LayoutProps } from '@/types'
 
@@ -19,6 +20,23 @@ const finalWidth = shouldUseCustomWidth ? `${widthValue}rem` : '25rem'
 <html lang={language}>
   <head>
     <ThemeManager />
+    <script is:inline>
+      ;(function () {
+        // Each page view has a 1-in-37 chance to start blurred, even when the
+        // user has not turned it on manually.
+        const randomBlur = Math.random() < 1 / 37
+        try {
+          if (localStorage.getItem('chiri-astigmatism') === 'on' || randomBlur) {
+            document.documentElement.classList.add('astigmatism')
+          }
+        } catch {
+          // localStorage can be unavailable (private mode); the random roll still applies.
+          if (randomBlur) {
+            document.documentElement.classList.add('astigmatism')
+          }
+        }
+      })()
+    </script>
     {fadeAnimation && <ClientRouter />}
     <slot name="head" />
   </head>
@@ -29,6 +47,7 @@ const finalWidth = shouldUseCustomWidth ? `${widthValue}rem` : '25rem'
       ${shouldUseCustomWidth ? `--content-width: ${widthValue}rem;` : ''}
     `}
   >
+    <AstigmatismFilter />
     {fadeAnimation ? (
       <TransitionWrapper type={type} class="layout-wrapper">
         <slot />

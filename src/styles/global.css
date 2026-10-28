@@ -212,3 +212,34 @@ main {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Astigmatism simulation: the footer author name toggles this class on <html>. */
+html.astigmatism
+  :is(
+    header nav > a,
+    .back-button,
+    .post-item .title,
+    .post-item .date,
+    .prose h1,
+    .prose h2,
+    .prose h3,
+    .prose h4,
+    .prose h5,
+    .prose h6,
+    .prose p:not(li p),
+    .prose li,
+    .prose figcaption,
+    .prose pre,
+    .prose td,
+    .prose th,
+    .prose .date,
+    .prose .link-card-url,
+    .prose .gc-repo-title,
+    .prose .gc-info-bar span,
+    .toc-link,
+    .error-container,
+    .copyright,
+    .powered-by
+  ) {
+  filter: url(#astigmatism-blur);
+}

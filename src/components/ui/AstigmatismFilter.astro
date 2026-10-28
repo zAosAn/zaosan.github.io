@@ -1,0 +1,26 @@
+<svg class="astigmatism-defs" width="0" height="0" aria-hidden="true" focusable="false">
+  <defs>
+    <filter id="astigmatism-blur" x="-50%" y="-80%" width="200%" height="260%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="0.8 1.6" result="core" />
+      <feOffset in="SourceGraphic" dx="0" dy="2.8" result="ghostSource" />
+      <feGaussianBlur in="ghostSource" stdDeviation="0.4 2.8" result="ghost" />
+      <feComponentTransfer in="ghost" result="ghostFaded">
+        <feFuncA type="linear" slope="0.55" />
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="core" />
+        <feMergeNode in="ghostFaded" />
+      </feMerge>
+    </filter>
+  </defs>
+</svg>
+
+<style>
+  .astigmatism-defs {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+</style>

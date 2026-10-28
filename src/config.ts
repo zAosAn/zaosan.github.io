@@ -4,9 +4,9 @@ export const themeConfig: ThemeConfig = {
   // SITE INFO ///////////////////////////////////////////////////////////////////////////////////////////
   site: {
     website: 'https://zaosan.github.io/', // Site domain
-    title: 'As tar', // Site title
+    title: 'AAASTAR😋', // Site title
     author: 'ZaoSan', // Author name
-    description: 'ZaoSan 的个人博客', // Site description
+    description: 'ZaoSan building blog', // Site description
     language: 'zh-CN' // Default language
   },
 

@@ -10,13 +10,105 @@ const today = new Date()
         &copy;
         {today.getFullYear()}
       </span>
-      {themeConfig.site.author}
+      <span class="author">{themeConfig.site.author}</span>
+      <span
+        id="astigmatism-toggle"
+        class="blur-toggle"
+        role="button"
+        tabindex="0"
+        aria-pressed="false"
+        title="切换散光模糊效果"
+      >
+        [blur]
+      </span>
     </div>
     <div class="powered-by">
       Powered by <a href="https://astro.build">Astro</a> + <a href="https://github.com/the3ash/astro-chiri">Chiri</a>
     </div>
   </div>
 </footer>
+
+<script is:inline>
+  ;(function () {
+    const STORAGE_KEY = 'chiri-astigmatism'
+    const RANDOM_BLUR_CHANCE = 1 / 37
+    let pendingOn = document.documentElement.classList.contains('astigmatism')
+
+    function readStored() {
+      try {
+        return localStorage.getItem(STORAGE_KEY) === 'on'
+      } catch {
+        return false
+      }
+    }
+
+    function isOn() {
+      return document.documentElement.classList.contains('astigmatism')
+    }
+
+    function syncToggle() {
+      const toggle = document.getElementById('astigmatism-toggle')
+      if (toggle) toggle.setAttribute('aria-pressed', String(isOn()))
+    }
+
+    function applyState() {
+      document.documentElement.classList.toggle('astigmatism', pendingOn)
+      syncToggle()
+    }
+
+    function setState(on, persist) {
+      pendingOn = on
+      document.documentElement.classList.toggle('astigmatism', on)
+      if (persist) {
+        try {
+          localStorage.setItem(STORAGE_KEY, on ? 'on' : 'off')
+        } catch {
+          // Persisting the preference is best-effort.
+        }
+      }
+      syncToggle()
+    }
+
+    function getToggleTarget(target) {
+      if (!(target instanceof Element)) return null
+      return target.closest('#astigmatism-toggle')
+    }
+
+    if (!window.__astigmatismToggleBound) {
+      window.__astigmatismToggleBound = true
+
+      document.addEventListener('click', function (event) {
+        if (!getToggleTarget(event.target)) return
+        event.preventDefault()
+        setState(!pendingOn, true)
+      })
+
+      document.addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        if (!getToggleTarget(event.target)) return
+        event.preventDefault()
+        setState(!pendingOn, true)
+      })
+
+      // Astro replaces the <html> attributes during a client-side navigation.
+      // Roll the 1-in-37 chance for the incoming page before the swap so the
+      // blur is already in place when it becomes visible.
+      document.addEventListener('astro:before-swap', function (event) {
+        if (!event.newDocument) return
+        pendingOn = readStored() || Math.random() < RANDOM_BLUR_CHANCE
+        event.newDocument.documentElement.classList.toggle('astigmatism', pendingOn)
+        const nextToggle = event.newDocument.getElementById('astigmatism-toggle')
+        if (nextToggle) nextToggle.setAttribute('aria-pressed', String(pendingOn))
+      })
+
+      document.addEventListener('astro:after-swap', applyState)
+      document.addEventListener('astro:page-load', applyState)
+    }
+
+    syncToggle()
+  })()
+</script>
+
 <style>
   footer {
     font-size: var(--font-size-s);
@@ -43,6 +135,12 @@ const today = new Date()
 
   .copyright .date {
     opacity: 1;
+  }
+
+  .blur-toggle {
+    margin-left: 0.35rem;
+    cursor: pointer;
+    text-decoration: none;
   }
 
   footer a {

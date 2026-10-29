@@ -31,6 +31,8 @@ export interface DateSettings {
 export interface PostSettings {
   readingTime: boolean
   toc: boolean
+  tocMaxItems: number
+  postListLimit: number
   imageViewer: boolean
   copyCode: boolean
   katex: boolean

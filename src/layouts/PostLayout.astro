@@ -16,10 +16,19 @@ import NeoDBCard from '@/components/ui/NeoDBCard.astro'
 import XPOST from '@/components/ui/XPOST.astro'
 import CopyCode from '@/components/ui/CopyCode.astro'
 import BaseLayout from '@/layouts/BaseLayout.astro'
+import { displayTags, tagHref } from '@/utils/tags'
 
 import { themeConfig } from '@/config'
 
-const { title, subtitle, pubDate, readingTime, toc = [], contentFeatures = {} } = Astro.props as PostLayoutProps
+const {
+  title,
+  subtitle,
+  pubDate,
+  tags = [],
+  readingTime,
+  toc = [],
+  contentFeatures = {}
+} = Astro.props as PostLayoutProps
 
 const postSlug = Astro.url.pathname.split('/').filter(Boolean).pop() || ''
 const ogImage = `/open-graph/${postSlug}.png`
@@ -55,7 +64,18 @@ const shouldRenderLinkCard = themeConfig.post.linkCard && contentFeatures.hasLin
               </span>
             )}
           </div>
+          <p class="post-tags">
+            {displayTags(tags).map((tag, index) => (
+              <Fragment>
+                {index > 0 && <span class="tag-separator">,</span>}
+                <a class="post-tag" href={tagHref(tag)}>
+                  {tag}
+                </a>
+              </Fragment>
+            ))}
+          </p>
         </div>
+        <hr class="title-rule" />
         <article class="content">
           <slot />
         </article>

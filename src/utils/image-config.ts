@@ -14,10 +14,10 @@ export const imageConfig = {
     adaptiveFiltering: true
   },
   webp: {
-    quality: 85,
+    quality: 80,
     lossless: false,
-    nearLossless: true,
-    smartSubsample: true
+    smartSubsample: true,
+    effort: 5
   },
   avif: {
     quality: 85,

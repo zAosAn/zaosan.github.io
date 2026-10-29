@@ -1,0 +1,288 @@
+---
+import IndexLayout from '@/layouts/IndexLayout.astro'
+import { themeConfig } from '@/config'
+import { formatDate } from '@/utils/date'
+import { getSortedFilteredPosts } from '@/utils/draft'
+import { displayTags, groupPostsByTag } from '@/utils/tags'
+
+const posts = await getSortedFilteredPosts()
+const groups = groupPostsByTag(posts)
+const totalTags = groups.length
+---
+
+<IndexLayout title={`Tags · ${themeConfig.site.title}`} description={themeConfig.site.description}>
+  <div class="tags-page" data-tags-page>
+    <header class="tags-head">
+      <span class="tags-label">Tags</span>
+      <span class="tags-count">{totalTags} tags</span>
+    </header>
+
+    <ul class="tag-cloud" role="list">
+      {groups.map((group) => (
+        <li>
+          <a
+            class="tag-chip"
+            href={`#${encodeURIComponent(group.name)}`}
+            data-tag-link={group.name}
+          >
+            <span class="tag-name">{group.name}</span>
+            <span class="tag-count">{group.posts.length}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+
+    <section class="tag-results" aria-label="Posts by tag">
+      <ul class="tag-posts" data-tag-section="*">
+        {posts.map((post) => (
+          <li>
+            <a class="tag-post" href={`/${post.id}/`}>
+              <span class="tag-post-title">{post.data.title}</span>
+              <span class="tag-post-tags">{displayTags(post.data.tags).join(' · ')}</span>
+              <span class="tag-post-date">{formatDate(post.data.pubDate)}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+
+      {groups.map((group) => (
+        <ul class="tag-posts" data-tag-section={group.name} hidden>
+          {group.posts.map((post) => (
+            <li>
+              <a class="tag-post" href={`/${post.id}/`}>
+                <span class="tag-post-title">{post.data.title}</span>
+                <span class="tag-post-tags">{group.name}</span>
+                <span class="tag-post-date">{formatDate(post.data.pubDate)}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      ))}
+    </section>
+  </div>
+</IndexLayout>
+
+<script is:inline>
+  ;(function () {
+    if (window.__tagsController?.destroy) {
+      window.__tagsController.destroy()
+    }
+
+    function decodeHash() {
+      const raw = window.location.hash.slice(1)
+      if (!raw) return '*'
+      try {
+        return decodeURIComponent(raw)
+      } catch {
+        return '*'
+      }
+    }
+
+    function applyFilter() {
+      const root = document.querySelector('[data-tags-page]')
+      if (!root) return '*'
+
+      const requested = decodeHash()
+      const sections = Array.from(root.querySelectorAll('[data-tag-section]'))
+      const known = sections.some((section) => section.dataset.tagSection === requested)
+      const active = known ? requested : '*'
+
+      sections.forEach((section) => {
+        section.hidden = section.dataset.tagSection !== active
+      })
+
+      root.querySelectorAll('[data-tag-link]').forEach((link) => {
+        const isActive = link.dataset.tagLink === active
+        link.classList.toggle('is-active', isActive)
+        link.setAttribute('aria-current', isActive ? 'true' : 'false')
+      })
+
+      return active
+    }
+
+    function handleHashChange() {
+      const active = applyFilter()
+      if (active === '*') return
+      const section = document.querySelector('[data-tags-page] [data-tag-section]:not([hidden])')
+      section?.scrollIntoView({ block: 'nearest' })
+    }
+
+    // Astro's ClientRouter intercepts same-page hash links, so the native
+    // hashchange event does not always fire. Drive the filter ourselves.
+    function handleClick(event) {
+      const root = document.querySelector('[data-tags-page]')
+      if (!root) return
+
+      const link = event.target.closest?.('[data-tag-link]')
+      if (!link || !root.contains(link)) return
+      event.preventDefault()
+      const href = link.getAttribute('href') || '#'
+      if (window.location.hash === href) {
+        handleHashChange()
+      } else {
+        history.pushState(null, '', href)
+        handleHashChange()
+      }
+    }
+
+    function init() {
+      window.removeEventListener('hashchange', handleHashChange)
+      window.removeEventListener('popstate', handleHashChange)
+      document.removeEventListener('click', handleClick)
+      window.addEventListener('hashchange', handleHashChange)
+      window.addEventListener('popstate', handleHashChange)
+      document.addEventListener('click', handleClick)
+      applyFilter()
+    }
+
+    function destroy() {
+      window.removeEventListener('hashchange', handleHashChange)
+      window.removeEventListener('popstate', handleHashChange)
+      document.removeEventListener('click', handleClick)
+    }
+
+    document.addEventListener('astro:page-load', init)
+    window.__tagsController = { destroy }
+    init()
+  })()
+</script>
+
+<style>
+  .tags-page {
+    width: 100%;
+  }
+
+  .tags-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    margin: 2.5rem 0 2rem;
+    font-family: var(--sans);
+    font-size: var(--font-size-s);
+    letter-spacing: var(--spacing-m);
+    color: var(--text-secondary);
+  }
+
+  .tags-label {
+    color: var(--text-secondary);
+  }
+
+  /* Tags sit on a grid so names and counts line up in columns. */
+  .tag-cloud {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr));
+    gap: 0.7rem 1.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tag-cloud li {
+    min-width: 0;
+  }
+
+  .tag-chip {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.15rem 0;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-family: var(--sans);
+    font-size: var(--font-size-s);
+    letter-spacing: var(--spacing-s);
+    transition: color 0.15s ease-out;
+  }
+
+  .tag-chip:hover,
+  .tag-chip:focus-visible,
+  .tag-chip.is-active {
+    color: var(--text-primary);
+  }
+
+  .tag-chip.is-active .tag-name {
+    border-bottom: 0.5px solid var(--text-tertiary);
+    padding-bottom: 0.1rem;
+  }
+
+  .tag-count {
+    color: var(--text-tertiary);
+    font-size: 0.85em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tag-results {
+    margin-top: 3rem;
+    border-top: 0.5px solid var(--border);
+  }
+
+  .tag-posts {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tag-posts[hidden] {
+    display: none;
+  }
+
+  .tag-post {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 7.5rem 5.5rem;
+    column-gap: 1.5rem;
+    align-items: baseline;
+    padding: 0.75rem 0;
+    border-bottom: 0.5px solid var(--border);
+    color: var(--text-primary);
+    text-decoration: none;
+  }
+
+  .tag-post-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: opacity 0.15s ease-out;
+  }
+
+  .tag-post-tags,
+  .tag-post-date {
+    color: var(--text-secondary);
+    font-family: var(--sans);
+    font-size: var(--font-size-s);
+    letter-spacing: var(--spacing-s);
+    white-space: nowrap;
+  }
+
+  .tag-post-tags {
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+  }
+
+  .tag-post-date {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .tag-post:hover .tag-post-title {
+      opacity: 0.55;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .tag-post {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .tag-post-tags {
+      display: none;
+    }
+  }
+</style>

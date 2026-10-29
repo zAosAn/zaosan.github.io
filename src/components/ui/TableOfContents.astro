@@ -5,7 +5,7 @@ import type { TOCProps } from '@/types'
 const { toc = [] }: TOCProps = Astro.props
 ---
 
-<div class="toc-container" id="toc">
+<div class="toc-container" id="toc" style={`--toc-max-items: ${themeConfig.post.tocMaxItems}`}>
   <nav class="toc-nav">
     <ul class="toc-list" id="toc-list">
       <!-- Back to top link -->
@@ -43,22 +43,34 @@ const { toc = [] }: TOCProps = Astro.props
 
     const activeOffset = 128
     const jumpOffset = 96
+    // Hit area for "the line" (toggle / hover trigger). Wider than the drawn line.
+    const lineHitWidth = 2.5 * 16
+    // Height of the fade at the top/bottom of the scrollable list.
+    const fadeSize = 16
+    const touchMedia = window.matchMedia('(hover: none), (pointer: coarse)')
 
     // Core state
     const state = {
       container: null,
+      nav: null,
       linkList: [],
       headingList: [],
       titleLink: null,
       headingMap: new Map(),
       scrollFrame: null,
+      maskFrame: null,
       resizeTimeout: null,
       resetTimeout: null,
       activeLink: null,
       activeId: null,
       hasContent: false,
       expanded: false,
-      hoveredIndex: -1
+      hoveredIndex: -1,
+      isTouch: touchMedia.matches,
+      lastPointerType: 'mouse',
+      // Chapter that was active when the panel opened; the list returns here on close.
+      anchorLink: null,
+      jumped: false
     }
 
     // Initialize DOM elements
@@ -66,6 +78,7 @@ const { toc = [] }: TOCProps = Astro.props
       state.container = document.querySelector('.toc-container')
       if (!state.container) return false
 
+      state.nav = state.container.querySelector('.toc-nav')
       state.linkList = Array.from(document.querySelectorAll('.toc-link'))
       state.headingList = Array.from(document.querySelectorAll('h1, h2, h3')).filter(
         (heading, index, headings) => !(index === 0 && headings[0].tagName === 'H1') && heading.id
@@ -100,7 +113,7 @@ const { toc = [] }: TOCProps = Astro.props
     function adjustPosition() {
       if (!state.container || !centeredLayout || !state.hasContent) {
         if (state.container) state.container.style.display = 'none'
-        clearExpanded()
+        collapse({ reset: false })
         return
       }
 
@@ -119,16 +132,154 @@ const { toc = [] }: TOCProps = Astro.props
         state.container.style.display = 'none'
         state.container.classList.remove('fixed-position')
         state.container.style.left = ''
-        clearExpanded()
+        collapse({ reset: false })
+      }
+    }
+
+    function linkIndex(link) {
+      return state.linkList.indexOf(link)
+    }
+
+    // Vertically center a link inside the scrollable list.
+    function scrollToLink(link, smooth) {
+      const nav = state.nav
+      if (!link || !nav) return
+      if (nav.scrollHeight <= nav.clientHeight + 1) return
+
+      const navRect = nav.getBoundingClientRect()
+      const linkRect = link.getBoundingClientRect()
+      const top = linkRect.top - navRect.top + nav.scrollTop
+      const target = Math.max(0, top - (nav.clientHeight - linkRect.height) / 2)
+
+      nav.scrollTo({ top: target, behavior: smooth ? 'smooth' : 'auto' })
+    }
+
+    // Return the list to the chapter that was active before the panel opened.
+    function scrollToAnchor(smooth) {
+      scrollToLink(state.anchorLink, smooth)
+    }
+
+    // Fade the top/bottom edge only while the list actually has hidden rows.
+    function updateFadeMask() {
+      const nav = state.nav
+      if (!nav) return
+
+      const scrollable = nav.scrollHeight > nav.clientHeight + 1
+      if (!scrollable) {
+        nav.style.maskImage = ''
+        nav.style.webkitMaskImage = ''
+        return
+      }
+
+      const top = nav.scrollTop > 1 ? fadeSize : 0
+      const bottom = nav.scrollTop + nav.clientHeight < nav.scrollHeight - 1 ? fadeSize : 0
+      const value = `linear-gradient(to bottom, transparent 0, #000 ${top}px, #000 calc(100% - ${bottom}px), transparent 100%)`
+
+      nav.style.maskImage = value
+      nav.style.webkitMaskImage = value
+    }
+
+    function scheduleMaskUpdate() {
+      if (state.maskFrame) return
+      state.maskFrame = requestAnimationFrame(() => {
+        state.maskFrame = null
+        updateFadeMask()
+      })
+    }
+
+    function resetLinkHighlights() {
+      state.linkList.forEach((link) => {
+        link.classList.remove('is-hovered')
+        link.style.removeProperty('--toc-delay')
+        link.style.removeProperty('--toc-shift')
+      })
+      state.hoveredIndex = -1
+    }
+
+    // Move the hover highlight while the panel is open.
+    function setHoveredLink(index) {
+      if (index === state.hoveredIndex) return
+      state.hoveredIndex = index
+      state.linkList.forEach((link, i) => link.classList.toggle('is-hovered', i === index))
+    }
+
+    // Collapse the full-title preview.
+    function collapse(options) {
+      const { reset = true } = options || {}
+      if (!state.container) return
+
+      const wasExpanded = state.expanded
+
+      // Only rewind when the visit did not end in a jump.
+      if (wasExpanded && reset && !state.jumped) {
+        scrollToAnchor(false)
+      }
+
+      state.container.classList.remove('expanded')
+      state.expanded = false
+      state.hoveredIndex = -1
+      state.anchorLink = null
+      state.jumped = false
+      resetLinkHighlights()
+      updateFadeMask()
+    }
+
+    // Show every title, staggered outward from the hovered line.
+    function expandAt(index) {
+      if (!state.container || index < 0) return
+
+      if (!state.expanded) {
+        state.expanded = true
+        state.hoveredIndex = index
+        state.anchorLink = state.activeLink || state.titleLink
+        state.jumped = false
+        state.container.classList.add('expanded')
+
+        state.linkList.forEach((link, i) => {
+          link.classList.toggle('is-hovered', i === index)
+          link.style.setProperty('--toc-delay', `${Math.abs(i - index) * 26}ms`)
+          link.style.setProperty('--toc-shift', `${i < index ? -4 : 4}px`)
+        })
+
+        // Wait for the width transition/layout before measuring the list.
+        requestAnimationFrame(() => {
+          scrollToAnchor(false)
+          updateFadeMask()
+        })
+      } else if (index !== state.hoveredIndex) {
+        state.hoveredIndex = index
+        state.linkList.forEach((link, i) => link.classList.toggle('is-hovered', i === index))
       }
     }
 
     // Handle click events
     function handleClick(e) {
-      const link = e.target.closest('.toc-link')
+      const link = e.target.closest?.('.toc-link')
       if (!link) return
 
+      const rect = link.getBoundingClientRect()
+      const inLine = e.clientX - rect.left <= lineHitWidth
+      const touchLike =
+        e.detail > 0 && (state.isTouch || state.lastPointerType === 'touch' || e.pointerType === 'touch')
+
+      // Touch: the line is a toggle. Taps on the (invisible) title area are ignored
+      // while collapsed so a stray tap cannot jump to a random chapter.
+      if (touchLike) {
+        if (!state.expanded) {
+          e.preventDefault()
+          if (inLine) expandAt(linkIndex(link))
+          return
+        }
+
+        if (inLine) {
+          e.preventDefault()
+          collapse()
+          return
+        }
+      }
+
       e.preventDefault()
+      state.jumped = true
 
       if (link.classList.contains('toc-title')) {
         window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -138,14 +289,17 @@ const { toc = [] }: TOCProps = Astro.props
         if (href?.startsWith('#')) {
           const target = document.getElementById(href.substring(1))
           if (target) {
-            const rect = target.getBoundingClientRect()
+            const targetRect = target.getBoundingClientRect()
             const scrollTop = window.pageYOffset || document.documentElement.scrollTop
-            const offset = rect.top + scrollTop - jumpOffset
+            const offset = targetRect.top + scrollTop - jumpOffset
             window.scrollTo({ top: offset, behavior: 'smooth' })
             history.pushState(null, null, href)
           }
         }
       }
+
+      // A tap that navigates also dismisses the panel on touch devices.
+      if (touchLike) collapse({ reset: false })
     }
 
     function setActive(nextActiveId) {
@@ -168,58 +322,52 @@ const { toc = [] }: TOCProps = Astro.props
       state.activeLink = nextActiveLink
     }
 
-    // Collapse the full-title preview.
-    function clearExpanded() {
-      if (state.container) {
-        state.container.classList.remove('expanded')
-      }
-
-      state.linkList.forEach((link) => {
-        link.classList.remove('is-hovered')
-        link.style.removeProperty('--toc-delay')
-        link.style.removeProperty('--toc-shift')
-      })
-
-      state.expanded = false
-      state.hoveredIndex = -1
-    }
-
-    // Show every title, staggered outward from the hovered line.
-    function expandAt(index) {
-      if (!state.container) return
-      if (state.expanded && state.hoveredIndex === index) return
-
-      state.expanded = true
-      state.hoveredIndex = index
-      state.container.classList.add('expanded')
-
-      state.linkList.forEach((link, i) => {
-        link.classList.toggle('is-hovered', i === index)
-        link.style.setProperty('--toc-delay', `${Math.abs(i - index) * 26}ms`)
-        link.style.setProperty('--toc-shift', `${i < index ? -4 : 4}px`)
-      })
-    }
-
     function handlePointerMove(event) {
       if (!state.container) return
+      if (state.isTouch || event.pointerType === 'touch') return
 
       const target = event.target
       if (!(target instanceof Element)) return
 
       const link = target.closest('.toc-link')
-      if (!link || !state.container.contains(link)) {
-        clearExpanded()
+      const inside = link && state.container.contains(link)
+
+      // Once open, keep the panel open and let the highlight follow the pointer.
+      if (state.expanded) {
+        setHoveredLink(inside ? linkIndex(link) : -1)
         return
       }
 
-      // The line indicators occupy the first 1.75rem; add a small tolerance.
+      if (!inside) return
+
       const rect = link.getBoundingClientRect()
-      if (event.clientX - rect.left <= 2 * 16) {
-        const index = state.linkList.indexOf(link)
-        if (index !== -1) expandAt(index)
-      } else {
-        clearExpanded()
+      if (event.clientX - rect.left <= lineHitWidth) {
+        expandAt(linkIndex(link))
       }
+    }
+
+    function handlePointerLeave(event) {
+      if (state.isTouch || event?.pointerType === 'touch') return
+      collapse()
+    }
+
+    function handlePointerDown(event) {
+      state.lastPointerType = event.pointerType || 'mouse'
+
+      // Tapping outside the TOC closes it (touch has no reliable pointerleave).
+      if (!state.expanded) return
+      if (!state.isTouch && state.lastPointerType !== 'touch') return
+
+      const target = event.target
+      if (target instanceof Node && state.container?.contains(target)) return
+
+      collapse()
+    }
+
+    function handleTouchMediaChange(event) {
+      state.isTouch = event.matches
+      if (state.isTouch) return
+      collapse({ reset: false })
     }
 
     function refreshActiveHeading() {
@@ -263,10 +411,15 @@ const { toc = [] }: TOCProps = Astro.props
         if (state.container) {
           state.container.addEventListener('click', handleClick)
           state.container.addEventListener('pointermove', handlePointerMove)
-          state.container.addEventListener('pointerleave', clearExpanded)
+          state.container.addEventListener('pointerleave', handlePointerLeave)
+        }
+
+        if (state.nav) {
+          state.nav.addEventListener('scroll', scheduleMaskUpdate, { passive: true })
         }
 
         refreshActiveHeading()
+        updateFadeMask()
       } else if (retryCount < maxRetries) {
         setTimeout(() => init(retryCount + 1), 100)
       }
@@ -281,6 +434,7 @@ const { toc = [] }: TOCProps = Astro.props
       state.resizeTimeout = requestAnimationFrame(() => {
         adjustPosition()
         refreshActiveHeading()
+        updateFadeMask()
       })
     }
 
@@ -293,14 +447,26 @@ const { toc = [] }: TOCProps = Astro.props
       if (state.container) {
         state.container.removeEventListener('click', handleClick)
         state.container.removeEventListener('pointermove', handlePointerMove)
-        state.container.removeEventListener('pointerleave', clearExpanded)
+        state.container.removeEventListener('pointerleave', handlePointerLeave)
       }
 
-      clearExpanded()
+      if (state.nav) {
+        state.nav.removeEventListener('scroll', scheduleMaskUpdate)
+        state.nav.style.maskImage = ''
+        state.nav.style.webkitMaskImage = ''
+      }
+
+      resetLinkHighlights()
+      state.container?.classList.remove('expanded')
 
       if (state.scrollFrame) {
         cancelAnimationFrame(state.scrollFrame)
         state.scrollFrame = null
+      }
+
+      if (state.maskFrame) {
+        cancelAnimationFrame(state.maskFrame)
+        state.maskFrame = null
       }
 
       if (state.resizeTimeout) {
@@ -315,16 +481,20 @@ const { toc = [] }: TOCProps = Astro.props
 
       Object.assign(state, {
         container: null,
+        nav: null,
         linkList: [],
         headingList: [],
         titleLink: null,
         headingMap: new Map(),
         scrollFrame: null,
+        maskFrame: null,
         activeLink: null,
         activeId: null,
         hasContent: false,
         expanded: false,
-        hoveredIndex: -1
+        hoveredIndex: -1,
+        anchorLink: null,
+        jumped: false
       })
     }
 
@@ -346,8 +516,13 @@ const { toc = [] }: TOCProps = Astro.props
       cleanup()
       document.removeEventListener('astro:page-load', scheduleReset)
       document.removeEventListener('astro:after-swap', scheduleReset)
+      document.removeEventListener('pointerdown', handlePointerDown, true)
       window.removeEventListener('scroll', scheduleActiveRefresh)
       window.removeEventListener('resize', handleResize)
+
+      if (typeof touchMedia.removeEventListener === 'function') {
+        touchMedia.removeEventListener('change', handleTouchMediaChange)
+      }
 
       if (window.__tocController?.destroy === destroy) {
         window.__tocController = null
@@ -357,8 +532,13 @@ const { toc = [] }: TOCProps = Astro.props
     // Event listeners
     document.addEventListener('astro:page-load', scheduleReset)
     document.addEventListener('astro:after-swap', scheduleReset)
+    document.addEventListener('pointerdown', handlePointerDown, true)
     window.addEventListener('scroll', scheduleActiveRefresh, { passive: true })
     window.addEventListener('resize', handleResize)
+
+    if (typeof touchMedia.addEventListener === 'function') {
+      touchMedia.addEventListener('change', handleTouchMediaChange)
+    }
 
     window.__tocController = { destroy }
     init()
@@ -387,6 +567,20 @@ const { toc = [] }: TOCProps = Astro.props
 
   .toc-nav {
     font-family: var(--sans);
+    max-height: min(calc(var(--toc-max-items, 20) * 1.4rem), calc(100vh - 14rem));
+    max-height: min(calc(var(--toc-max-items, 20) * 1.4rem), calc(100dvh - 14rem));
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .toc-nav::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
   }
 
   .toc-list,
@@ -540,6 +734,13 @@ const { toc = [] }: TOCProps = Astro.props
   .toc-link.active::before {
     opacity: 0.8;
     background-color: var(--text-primary);
+  }
+
+  /* Touch devices have no hover: the line becomes a tap target. */
+  @media (hover: none) {
+    .toc-link::after {
+      transition-duration: 0.01ms;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

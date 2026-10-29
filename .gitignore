@@ -9,6 +9,13 @@ dist/
 node_modules/
 .pnpm-store/
 
+# Local handoff notes (kept out of the repository on purpose)
+HANDOFF.md
+
+# Local scratch files (screenshots, dev logs, probe scripts)
+tmp/
+*.log
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

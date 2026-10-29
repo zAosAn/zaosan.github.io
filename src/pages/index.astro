@@ -5,12 +5,52 @@ import PostList from '@/components/widgets/PostList.astro'
 import { themeConfig } from '@/config'
 import { getSortedFilteredPosts } from '@/utils/draft'
 
-const posts = await getSortedFilteredPosts()
+const allPosts = await getSortedFilteredPosts()
+const limit = themeConfig.post.postListLimit
+const posts = limit > 0 ? allPosts.slice(0, limit) : allPosts
 ---
 
 <IndexLayout title={themeConfig.site.title} description={themeConfig.site.description}>
   <About />
-  <main>
-    <PostList posts={posts} />
-  </main>
+  <hr class="section-rule" />
+  <PostList posts={posts} />
+  <hr class="section-rule section-rule--tight" />
+  <nav class="archive-links" aria-label="All posts and tags">
+    <a href="/allpost/">[Allpost]</a>
+    <a href="/tags/">[Tags]</a>
+  </nav>
 </IndexLayout>
+
+<style>
+  .section-rule {
+    width: 100%;
+    border: 0;
+    border-top: 0.5px solid var(--border);
+    margin: 2.75rem 0 1.75rem;
+  }
+
+  .section-rule--tight {
+    margin: 1.5rem 0 1.25rem;
+  }
+
+  .archive-links {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 2.5rem;
+    font-family: var(--sans);
+    font-size: var(--font-size-s);
+    letter-spacing: var(--spacing-m);
+  }
+
+  .archive-links a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.15s ease-out;
+  }
+
+  .archive-links a:hover,
+  .archive-links a:focus-visible {
+    color: var(--text-primary);
+  }
+</style>

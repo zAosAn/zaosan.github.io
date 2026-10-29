@@ -31,6 +31,8 @@ export const themeConfig: ThemeConfig = {
   post: {
     readingTime: false, // Show reading time in posts
     toc: true, // Show table of contents (when there is enough page width)
+    tocMaxItems: 20, // Max TOC rows visible before the panel starts scrolling (includes "Back to top")
+    postListLimit: 8, // Max posts shown on the home page; the rest live on /allpost/
     imageViewer: true, // Enable image viewer
     copyCode: true, // Enable copy button in code blocks
     linkCard: true, // Enable link card

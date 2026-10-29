@@ -19,12 +19,12 @@ export const { getStaticPaths, GET } = await OGImageRoute({
     title: page.title,
     description: themeConfig.site.title,
     logo: {
-      path: 'public/og/og-logo.png',
+      path: 'assets/og/og-logo.png',
       size: [80, 80]
     },
     bgGradient: [[255, 255, 255]],
     bgImage: {
-      path: 'public/og/og-bg.png',
+      path: 'assets/og/og-bg.png',
       fit: 'fill'
     },
     padding: 64,
@@ -42,6 +42,6 @@ export const { getStaticPaths, GET } = await OGImageRoute({
         families: ['Inter Variable', 'Noto Sans SC']
       }
     },
-    fonts: ['public/fonts/Inter.woff2', 'public/fonts/NotoSansSC-Regular.otf', 'public/fonts/NotoSansSC-Bold.otf']
+    fonts: ['public/fonts/Inter.woff2', 'assets/og/NotoSansSC-Regular.otf', 'assets/og/NotoSansSC-Bold.otf']
   })
 })

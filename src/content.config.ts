@@ -12,7 +12,13 @@ const posts = defineCollection({
       subtitle: z.string().optional(),
       // Transform string to Date object
       pubDate: z.coerce.date(),
-      image: z.string().optional()
+      image: z.string().optional(),
+      // Free-form tags; an empty list is rendered as the "void" tag.
+      tags: z
+        .array(z.string())
+        .nullish()
+        .transform((value) => (value ?? []).map((tag) => tag.trim()).filter(Boolean))
+        .default([])
     })
 })
 

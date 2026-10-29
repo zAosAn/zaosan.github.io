@@ -1,0 +1,162 @@
+---
+import IndexLayout from '@/layouts/IndexLayout.astro'
+import { themeConfig } from '@/config'
+import { getSortedFilteredPosts } from '@/utils/draft'
+
+const posts = await getSortedFilteredPosts()
+
+const pad = (value: number) => String(value).padStart(2, '0')
+
+const groups: { year: number; posts: typeof posts }[] = []
+for (const post of posts) {
+  const year = post.data.pubDate.getUTCFullYear()
+  const current = groups[groups.length - 1]
+  if (current && current.year === year) {
+    current.posts.push(post)
+  } else {
+    groups.push({ year, posts: [post] })
+  }
+}
+
+const buildDate = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Shanghai',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit'
+})
+  .format(new Date())
+  .replaceAll('-', '.')
+---
+
+<IndexLayout title={`Allpost · ${themeConfig.site.title}`} description={themeConfig.site.description}>
+  <div class="archive">
+    <header class="archive-head">
+      <span class="archive-label">Allpost</span>
+      <span class="archive-updated">Updated {buildDate}</span>
+    </header>
+
+    <div class="archive-groups">
+      {groups.map((group) => (
+        <div class="archive-group">
+          {group.posts.map((post, index) => (
+            <a class:list={['archive-row', { 'has-year': index === 0 }]} href={`/${post.id}/`}>
+              <span class="archive-year">{index === 0 ? group.year : ''}</span>
+              <span class="archive-title">{post.data.title}</span>
+              <span class="archive-date">
+                {pad(post.data.pubDate.getUTCDate())}/{pad(post.data.pubDate.getUTCMonth() + 1)}
+              </span>
+            </a>
+          ))}
+        </div>
+      ))}
+    </div>
+  </div>
+</IndexLayout>
+
+<style>
+  .archive {
+    width: 100%;
+  }
+
+  .archive-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    margin: 2.5rem 0 2rem;
+    padding-bottom: 0.85rem;
+    border-bottom: 0.5px solid var(--border);
+    font-family: var(--sans);
+    font-size: var(--font-size-m);
+    letter-spacing: var(--spacing-m);
+    color: var(--text-tertiary);
+  }
+
+  .archive-label {
+    color: var(--text-secondary);
+  }
+
+  .archive-groups {
+    --archive-indent: calc(4.5rem + 2.5rem);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .archive-group {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .archive-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+    column-gap: 2.5rem;
+    align-items: baseline;
+    padding: 0.65rem 0;
+    color: var(--text-primary);
+    text-decoration: none;
+  }
+
+  /* The hairline starts at the title column for rows without a year. */
+  .archive-row::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-top: 0.5px solid var(--border);
+  }
+
+  .archive-row:not(.has-year)::after {
+    left: var(--archive-indent);
+  }
+
+  .archive-year {
+    color: var(--text-tertiary);
+    font-size: var(--font-size-m);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: var(--spacing-s);
+  }
+
+  .archive-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: opacity 0.15s ease-out;
+  }
+
+  .archive-date {
+    color: var(--text-secondary);
+    font-size: var(--font-size-s);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: var(--spacing-s);
+    transition: opacity 0.15s ease-out;
+  }
+
+  /* Hovering one row dims the other titles, leaving years and rules untouched. */
+  @media (hover: hover) and (pointer: fine) {
+    .archive-groups:hover .archive-title,
+    .archive-groups:hover .archive-date {
+      opacity: 0.32;
+    }
+
+    .archive-groups:hover .archive-row:hover .archive-title,
+    .archive-groups:hover .archive-row:hover .archive-date {
+      opacity: 1;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .archive-groups {
+      --archive-indent: calc(3rem + 1rem);
+    }
+
+    .archive-row {
+      grid-template-columns: 3rem minmax(0, 1fr) auto;
+      column-gap: 1rem;
+    }
+  }
+</style>

@@ -1,6 +1,7 @@
 ---
 title: '主题指南'
 pubDate: '2025-07-10'
+tags: ['指南', 'Astro']
 ---
 
 Chiri 是一个使用 [Astro](https://astro.build) 构建的极简博客主题，在保持简洁美学的同时提供多种自定义选项。

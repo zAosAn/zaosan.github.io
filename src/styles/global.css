@@ -96,6 +96,7 @@ html.dark {
 }
 
 html {
+  position: relative;
   background-color: var(--bg);
   scroll-behavior: smooth;
   scrollbar-gutter: stable;
@@ -220,6 +221,18 @@ html.astigmatism
     .back-button,
     .post-item .title,
     .post-item .date,
+    .archive-label,
+    .archive-updated,
+    .archive-year,
+    .archive-title,
+    .archive-date,
+    .archive-links a,
+    .tags-label,
+    .tags-count,
+    .tag-chip,
+    .tag-post-title,
+    .tag-post-tags,
+    .tag-post-date,
     .prose h1,
     .prose h2,
     .prose h3,
@@ -244,15 +257,15 @@ html.astigmatism
   filter: url(#astigmatism-blur);
 }
 
-/* Fixed film-grain layer, below the content but above the page background. */
-body::before {
+/* Film-grain layer. It spans the full document and scrolls with the content. */
+html::before {
   content: '';
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: url('/textures/film-grain.png') repeat;
-  background-size: 160px 160px;
+  background: url('/textures/film-grain.webp') repeat;
+  background-size: 112px 112px;
   opacity: 0.045;
   mix-blend-mode: multiply;
 }
@@ -262,13 +275,13 @@ body::before {
   z-index: 1;
 }
 
-html.dark body::before {
+html.dark::before {
   opacity: 0.05;
   mix-blend-mode: screen;
 }
 
 @media print {
-  body::before {
+  html::before {
     display: none;
   }
 }

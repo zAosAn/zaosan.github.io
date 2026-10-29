@@ -1,6 +1,7 @@
 ---
 title: 'TR-808 的故事'
 pubDate: '2025-05-10'
+tags: ['音乐', '历史']
 ---
 
 ![_tr-808](./_assets/tr-808.webp)

@@ -2,6 +2,7 @@
 title: 'Before Sun and Moon'
 subtitle: '日月前事'
 pubDate: '2026-10-28'
+tags: ['翻译', '世界观']
 ---
 
 What we wish to record is the tale of how heaven's will took shape on the earth below. O heavenly gods, these creations are your works. Grant us divine wisdom — let us endlessly record!

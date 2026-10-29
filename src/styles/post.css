@@ -17,7 +17,7 @@
 
 /* Post title section */
 .prose .title {
-  margin-bottom: 2.5em;
+  margin-bottom: 1.25rem;
 }
 
 .prose .title h1 {
@@ -25,10 +25,46 @@
   font-size: 1.875rem;
 }
 
-/* Post date: smaller and aligned to the right edge of the content column. */
+/* Post date: smaller and aligned to the left edge of the content column. */
 .prose .title .date {
   font-size: var(--font-size-s);
-  text-align: right;
+  text-align: left;
+}
+
+/* Tags sit under the date, matching its size and color. */
+.prose .title .post-tags {
+  margin: 0.4rem 0 0;
+  font-size: var(--font-size-s);
+  line-height: 1.5;
+  letter-spacing: var(--spacing-s);
+  color: var(--text-secondary);
+}
+
+.prose .title .post-tags .post-tag {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 0.5px solid transparent;
+  transition:
+    color 0.15s ease-out,
+    border-color 0.15s ease-out;
+}
+
+.prose .title .post-tags .post-tag:hover,
+.prose .title .post-tags .post-tag:focus-visible {
+  color: var(--text-primary);
+  border-bottom-color: var(--text-tertiary);
+}
+
+.prose .title .post-tags .tag-separator {
+  margin: 0 0.35em;
+  opacity: 0.6;
+}
+
+/* Thin rule between the post header and the body. */
+.prose .title-rule {
+  border: 0;
+  border-top: 0.5px solid var(--border);
+  margin: 1.25rem 0 2.5rem;
 }
 
 /* Optional subtitle shown beneath the post title */

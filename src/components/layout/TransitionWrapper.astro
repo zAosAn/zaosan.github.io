@@ -28,44 +28,92 @@ const { class: className = '' } = Astro.props
 </script>
 
 <style is:inline>
-  @supports (view-transition-name: none) {
-    @media not (prefers-reduced-motion: reduce) {
-      ::view-transition-old(root) {
-        animation: fade-out 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-      }
+  /*
+    Segue: Focus Pull
 
-      ::view-transition-new(root) {
-        opacity: 0;
-        animation: fade-in 0.3s ease 0.1s forwards;
-        will-change: filter, opacity, transform;
-      }
-    }
+    - 旧页淡出：放大到 scale(1.012)，模糊到 blur(8px)，同时透明度归零。
+    - 新页载入：从 scale(1.010) + blur(8px) 开始，收缩回 scale(1) 并清晰。
+    - 时长 0.5s；两层叠加用 plus-lighter。
+    - Same page: document.startViewTransition(() => updateTheDOM())
+    - Across pages: @view-transition opts same-origin navigations in.
+    - Reduced motion falls back to the browser's default crossfade.
+  */
+
+  @view-transition {
+    navigation: auto;
   }
 
-  @keyframes fade-out {
+  :root {
+    --segue-duration: 0.5s;
+  }
+
+  @keyframes segue-focus-out {
     0% {
+      transform: scale(1);
+      filter: blur(0px);
       opacity: 1;
+      animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
     }
     100% {
-      opacity: 0;
-    }
-  }
-
-  @keyframes fade-in {
-    0% {
-      opacity: 0;
+      transform: scale(1.012);
       filter: blur(8px);
-      transform: translateZ(0);
+      opacity: 0;
     }
-    30% {
-      opacity: 0.5;
-      filter: blur(4px);
-      transform: translateZ(0);
+  }
+
+  @keyframes segue-focus-in {
+    0% {
+      transform: scale(1.010);
+      filter: blur(8px);
+      opacity: 0;
+      animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
     }
     100% {
+      transform: scale(1);
+      filter: blur(0px);
       opacity: 1;
-      filter: blur(0);
-      transform: translateZ(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    ::view-transition-group(root) {
+      animation: none;
+    }
+
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      mix-blend-mode: plus-lighter;
+      animation-duration: var(--segue-duration);
+      animation-fill-mode: both;
+    }
+
+    ::view-transition-old(root) {
+      animation-name: segue-focus-out;
+    }
+
+    ::view-transition-new(root) {
+      animation-name: segue-focus-in;
+    }
+  }
+
+  /*
+    Backwards: the same move the other way when navigating back.
+    - Cross-document: a `pagereveal` listener adds the "backwards" type.
+    - Same-document (Astro ClientRouter): the router exposes its direction
+      through the `data-astro-transition` attribute while the transition runs.
+  */
+  @media (prefers-reduced-motion: no-preference) {
+    :root:active-view-transition-type(backwards)::view-transition-old(root),
+    :root[data-astro-transition='back']::view-transition-old(root) {
+      animation-name: segue-focus-in;
+      animation-direction: reverse;
+      z-index: 1;
+    }
+
+    :root:active-view-transition-type(backwards)::view-transition-new(root),
+    :root[data-astro-transition='back']::view-transition-new(root) {
+      animation-name: segue-focus-out;
+      animation-direction: reverse;
     }
   }
 </style>

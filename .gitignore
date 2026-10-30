@@ -12,6 +12,9 @@ node_modules/
 # Local handoff notes (kept out of the repository on purpose)
 HANDOFF.md
 
+# Local reference files (not part of the site)
+localres/
+
 # Local scratch files (screenshots, dev logs, probe scripts)
 tmp/
 *.log

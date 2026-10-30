@@ -31,7 +31,10 @@ const buildDate = new Intl.DateTimeFormat('en-CA', {
 <IndexLayout title={`Allpost · ${themeConfig.site.title}`} description={themeConfig.site.description}>
   <div class="archive">
     <header class="archive-head">
-      <span class="archive-label">Allpost</span>
+      <div class="archive-head-left">
+        <span class="archive-label">Allpost</span>
+        <a class="archive-switch" href="/tags/">[goTags]</a>
+      </div>
       <span class="archive-updated">Updated {buildDate}</span>
     </header>
 
@@ -72,8 +75,27 @@ const buildDate = new Intl.DateTimeFormat('en-CA', {
     color: var(--text-tertiary);
   }
 
+  .archive-head-left {
+    display: flex;
+    align-items: baseline;
+    gap: 1.25rem;
+  }
+
   .archive-label {
-    color: var(--text-secondary);
+    color: var(--text-primary);
+  }
+
+  .archive-switch {
+    color: var(--text-tertiary);
+    text-decoration: none;
+    font-size: var(--font-size-s);
+    letter-spacing: var(--spacing-m);
+    transition: color 0.15s ease-out;
+  }
+
+  .archive-switch:hover,
+  .archive-switch:focus-visible {
+    color: var(--text-primary);
   }
 
   .archive-groups {

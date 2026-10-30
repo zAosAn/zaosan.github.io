@@ -13,7 +13,10 @@ const totalTags = groups.length
 <IndexLayout title={`Tags · ${themeConfig.site.title}`} description={themeConfig.site.description}>
   <div class="tags-page" data-tags-page>
     <header class="tags-head">
-      <span class="tags-label">Tags</span>
+      <div class="tags-head-left">
+        <span class="tags-label">Tags</span>
+        <a class="tags-switch" href="/allpost/">[goPost]</a>
+      </div>
       <span class="tags-count">{totalTags} tags</span>
     </header>
 
@@ -164,8 +167,26 @@ const totalTags = groups.length
     color: var(--text-secondary);
   }
 
+  .tags-head-left {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+  }
+
   .tags-label {
-    color: var(--text-secondary);
+    color: var(--text-primary);
+  }
+
+  .tags-switch {
+    color: var(--text-tertiary);
+    text-decoration: none;
+    letter-spacing: var(--spacing-m);
+    transition: color 0.15s ease-out;
+  }
+
+  .tags-switch:hover,
+  .tags-switch:focus-visible {
+    color: var(--text-primary);
   }
 
   /* Tags sit on a grid so names and counts line up in columns. */

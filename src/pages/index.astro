@@ -2,6 +2,7 @@
 import IndexLayout from '@/layouts/IndexLayout.astro'
 import About from '@/components/widgets/About.astro'
 import PostList from '@/components/widgets/PostList.astro'
+import Sticker from '@/components/widgets/Sticker.astro'
 import { themeConfig } from '@/config'
 import { getSortedFilteredPosts } from '@/utils/draft'
 
@@ -19,6 +20,7 @@ const posts = limit > 0 ? allPosts.slice(0, limit) : allPosts
     <a href="/allpost/">[Allpost]</a>
     <a href="/tags/">[Tags]</a>
   </nav>
+  <Sticker />
 </IndexLayout>
 
 <style>

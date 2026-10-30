@@ -21,6 +21,16 @@ const today = new Date()
       >
         [blur]
       </span>
+      <span
+        id="sticker-sound-toggle"
+        class="sticker-sound-toggle"
+        role="button"
+        tabindex="0"
+        aria-pressed="true"
+        title="切换贴纸音效"
+      >
+        (SS)
+      </span>
     </div>
     <div class="powered-by">
       Powered by <a href="https://astro.build">Astro</a> + <a href="https://github.com/the3ash/astro-chiri">Chiri</a>
@@ -109,6 +119,67 @@ const today = new Date()
   })()
 </script>
 
+<script is:inline>
+  ;(function () {
+    const STORAGE_KEY = 'chiri-sticker-sound'
+    let pendingOn = true
+
+    function readStored() {
+      try {
+        return localStorage.getItem(STORAGE_KEY) !== 'off'
+      } catch {
+        return true
+      }
+    }
+
+    function syncToggle() {
+      const toggle = document.getElementById('sticker-sound-toggle')
+      if (toggle) toggle.setAttribute('aria-pressed', String(pendingOn))
+    }
+
+    function setState(on, persist) {
+      pendingOn = on
+      if (persist) {
+        try {
+          localStorage.setItem(STORAGE_KEY, on ? 'on' : 'off')
+        } catch {
+          // Persisting the preference is best-effort.
+        }
+      }
+      document.dispatchEvent(new CustomEvent('sticker:sound', { detail: { on } }))
+      syncToggle()
+    }
+
+    function getToggleTarget(target) {
+      if (!(target instanceof Element)) return null
+      return target.closest('#sticker-sound-toggle')
+    }
+
+    pendingOn = readStored()
+
+    if (!window.__stickerSoundToggleBound) {
+      window.__stickerSoundToggleBound = true
+
+      document.addEventListener('click', function (event) {
+        if (!getToggleTarget(event.target)) return
+        event.preventDefault()
+        setState(!pendingOn, true)
+      })
+
+      document.addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        if (!getToggleTarget(event.target)) return
+        event.preventDefault()
+        setState(!pendingOn, true)
+      })
+
+      document.addEventListener('astro:page-load', syncToggle)
+    }
+
+    syncToggle()
+  })()
+</script>
+
 <style>
   footer {
     font-size: var(--font-size-s);
@@ -137,7 +208,8 @@ const today = new Date()
     opacity: 1;
   }
 
-  .blur-toggle {
+  .blur-toggle,
+  .sticker-sound-toggle {
     margin-left: 0.35rem;
     cursor: pointer;
     text-decoration: none;

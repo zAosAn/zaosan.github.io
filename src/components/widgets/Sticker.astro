@@ -1,0 +1,234 @@
+---
+// Peelable holographic stickers, built from `localres/贴纸效果.txt`.
+//
+// The engine and extras are vendored, unmodified, from jhey.dev into
+// public/vendor and imported at runtime, so they never touch the build.
+// The three stickers below are exactly the ones from that file: same ids,
+// src paths, cut / finish / material / width / at / rotation / look values.
+// Each page view shows one of them at random; the sticker follows the page
+// scroll and its smudges fade out when the page moves.
+---
+
+<div id="holo-sticker-layer" class="holo-sticker-layer"></div>
+
+<script>
+  type Board = {
+    stickers: { x: number; y: number }[]
+    use: (extension: unknown) => unknown
+    set: (options: { sound?: boolean }) => void
+    kick: () => void
+    destroy: () => void
+  }
+
+  type StickerSpec = {
+    id: string
+    src: string
+    cut: number
+    finish: string
+    material: string
+    width: number
+    at: [number, number]
+    rotation: number
+    look: { bands: number; dispersion: number; flake: number }
+  }
+
+  const LAYER_ID = 'holo-sticker-layer'
+  const SOUND_KEY = 'chiri-sticker-sound'
+
+  // Copied verbatim from localres/贴纸效果.txt.
+  const STICKERS: StickerSpec[] = [
+    {
+      id: 'seele-herrscher-of-rebirth-29',
+      src: '/stickers/Seele_-_Herrscher_of_Rebirth_29.webp',
+      cut: 0.036,
+      finish: 'clear',
+      material: 'rigid',
+      width: 170,
+      at: [-0.02, 0.264],
+      rotation: 580.4,
+      look: { bands: 1.22, dispersion: 0.74, flake: 1.9 }
+    },
+    {
+      id: 'character-robin-eidolon-4',
+      src: '/stickers/Character_Robin_Eidolon_4.png',
+      cut: 0.03,
+      finish: 'print',
+      material: 'rigid',
+      width: 134,
+      at: [0.019, -0.046],
+      rotation: -19.1,
+      look: { bands: 1.79, dispersion: 0.51, flake: 2.5 }
+    },
+    {
+      id: 'qx',
+      src: '/stickers/qx.gif',
+      cut: 0.045,
+      finish: 'chrome',
+      material: 'vinyl',
+      width: 132,
+      at: [-0.171, 0.082],
+      rotation: 22.1,
+      look: { bands: 0.91, dispersion: 0.58, flake: 2.2 }
+    }
+  ]
+
+  let board: Board | null = null
+  let mounting = false
+  let lastScroll = window.scrollY
+  let residueTimer = 0
+  let residueHidden = false
+  // The residue extension keeps its own full-viewport buffers and repaints the
+  // visible canvas from them on the next peel, so fading the canvas alone is not
+  // enough: the buffers have to be cleared through its own `clear()`.
+  let residueExt: { clear: () => void } | null = null
+
+  // The engine paints smudges onto viewport-fixed canvases. Once the sticker
+  // follows the page they no longer line up with anything, so let them fade out
+  // on scroll and drop the pixels afterwards.
+  const RESIDUE_FADE_MS = 300
+
+  const residueCanvases = () =>
+    Array.from(document.querySelectorAll<HTMLCanvasElement>('.hs-under.hs-residue, .hs-under.hs-crumbs'))
+
+  const fadeResidue = () => {
+    const canvases = residueCanvases()
+    if (residueHidden || canvases.length === 0) return
+    residueHidden = true
+    clearTimeout(residueTimer)
+    for (const canvas of canvases) {
+      canvas.style.transition = `opacity ${RESIDUE_FADE_MS}ms ease-out`
+      canvas.style.opacity = '0'
+    }
+    residueTimer = window.setTimeout(() => {
+      // Fade is over: throw away the smudges in the extension's buffers too,
+      // otherwise the next peel would paint them again at full opacity.
+      residueExt?.clear()
+    }, RESIDUE_FADE_MS + 20)
+  }
+
+  // The next press starts from a clean slate: the old smudges are already gone,
+  // so the canvas can be shown again without a flash of stale marks.
+  const resetResidue = () => {
+    if (!residueHidden) return
+    residueHidden = false
+    clearTimeout(residueTimer)
+    residueExt?.clear()
+    for (const canvas of residueCanvases()) {
+      canvas.style.transition = 'none'
+      canvas.style.opacity = '1'
+    }
+  }
+
+  const isHome = () => location.pathname.replace(/index\.html$/, '') === '/'
+
+  const readSound = () => {
+    try {
+      return localStorage.getItem(SOUND_KEY) !== 'off'
+    } catch {
+      return true
+    }
+  }
+
+  // The txt file only targets a desktop viewport, so phones get the same
+  // sticker at the same fraction of the viewport, just smaller.
+  const scaledWidth = (width: number) => {
+    const vw = innerWidth
+    const scale = vw < 480 ? 0.45 : vw < 768 ? 0.6 : vw < 1024 ? 0.8 : 1
+    return Math.round(width * scale)
+  }
+
+  const mount = async () => {
+    // `astro:page-load` and the first-visit call below can land in the same
+    // tick; without this flag both would create a board.
+    if (mounting || board || !isHome()) return
+    const layer = document.getElementById(LAYER_ID)
+    if (!layer) return
+    mounting = true
+    try {
+      // Runtime-only imports so the engine stays a plain file in public/vendor.
+      const engineUrl = '/vendor/holo-stickers-1.0.0.min.js'
+      const extrasUrl = '/vendor/holo-stickers-extras-1.0.0.min.js'
+      const engine = await import(/* @vite-ignore */ engineUrl)
+      const extras = await import(/* @vite-ignore */ extrasUrl)
+
+      // The layer can be swapped away while the modules are loading.
+      if (!isHome() || !layer.isConnected) return
+
+      // One sticker per page view, picked at random from the three in the txt.
+      const spec = STICKERS[Math.floor(Math.random() * STICKERS.length)]
+
+      const instance: Board = await engine.createStickers({
+        container: layer,
+        stickers: [{ ...spec, width: scaledWidth(spec.width) }],
+        // Muted at first: creating the board fires a burst of intro sounds, and
+        // resuming audio before a gesture only produces rejected promises.
+        sound: false
+      })
+      if (!isHome() || !layer.isConnected) {
+        instance.destroy()
+        return
+      }
+      residueExt = instance.use(extras.residue()) as { clear: () => void }
+      instance.use(extras.bubbles())
+      board = instance
+      lastScroll = window.scrollY
+      residueHidden = false
+      clearTimeout(residueTimer)
+
+      // Unmute on the first real gesture, which also satisfies the browser's
+      // autoplay policy for the audio context.
+      const enableSound = () => {
+        window.removeEventListener('pointerdown', enableSound, true)
+        if (board === instance && readSound()) instance.set({ sound: true })
+      }
+      window.addEventListener('pointerdown', enableSound, true)
+    } finally {
+      mounting = false
+    }
+  }
+
+  const unmount = () => {
+    const instance = board
+    board = null
+    residueExt = null
+    clearTimeout(residueTimer)
+    residueHidden = false
+    if (!instance) return
+    // Tearing the board down replays every sticker's "reset", which would start
+    // the audio context again and reject on close; mute first and drop the
+    // pending standby timer so it cannot suspend a closed context.
+    instance.set({ sound: false })
+    const sound = (instance as unknown as { sound?: { idle?: number } }).sound
+    if (sound?.idle) clearTimeout(sound.idle)
+    instance.destroy()
+  }
+
+  // The engine keeps stickers fixed to the viewport; shifting them by the
+  // scroll delta makes them sit on the page instead.
+  const followScroll = () => {
+    const y = window.scrollY
+    const delta = y - lastScroll
+    lastScroll = y
+    fadeResidue()
+    if (!board || delta === 0) return
+    for (const sticker of board.stickers) sticker.y += delta
+    board.kick()
+  }
+
+  document.addEventListener('astro:page-load', mount)
+  document.addEventListener('astro:before-swap', unmount)
+  window.addEventListener('scroll', followScroll, { passive: true })
+  document.addEventListener('pointerdown', resetResidue, true)
+  document.addEventListener('sticker:sound', ((event: CustomEvent<{ on: boolean }>) => {
+    board?.set({ sound: event.detail.on })
+  }) as EventListener)
+</script>
+
+<style is:global>
+  .holo-sticker-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+  }
+</style>

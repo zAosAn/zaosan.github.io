@@ -56,3 +56,15 @@ const posts = limit > 0 ? allPosts.slice(0, limit) : allPosts
     color: var(--text-primary);
   }
 </style>
+
+<style is:global>
+  /*
+    Home only: this stylesheet is bundled with `/` and nowhere else, and the
+    `:has(.archive-links)` guard keeps the rule from leaking if it is ever
+    included globally. Article pages keep normal text selection.
+  */
+  body:has(.archive-links) {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+</style>

@@ -98,12 +98,32 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
   let syncRaf = 0
   let syncUntil = 0
   let pointerActive = false
+  let lastViewportHeight = 0
+  let pendingResize = 0
 
-  const hud = {
-    mode: document.querySelector('.hud-mode'),
-    driver: document.querySelector('.hud-driver'),
-    scroll: document.querySelector('.hud-scroll')
+  const hudDriver = () => document.querySelector('.hud-driver')
+  const hudScroll = () => document.querySelector('.hud-scroll')
+
+  const setHud = (text: string) => {
+    const node = hudDriver()
+    if (node) node.textContent = text
   }
+
+  // The HUD used to keep the server-rendered "初始化…" if the module ran late or
+  // threw; keep a visible status instead of a silent stuck label.
+  window.addEventListener('error', (event) => {
+    if (document.querySelector('.hud-driver')) setHud(`出错：${event.message}`)
+  })
+  window.addEventListener('unhandledrejection', (event) => {
+    if (document.querySelector('.hud-driver')) setHud(`出错：${String(event.reason)}`)
+  })
+
+  // If the module never gets to run (cached HTML without JS, blocked script),
+  // say so instead of leaving the server-rendered label forever.
+  window.setTimeout(() => {
+    const node = hudDriver()
+    if (node && node.textContent === '初始化…') node.textContent = '脚本未执行（请刷新）'
+  }, 6000)
 
   const readSound = () => {
     try {
@@ -252,7 +272,10 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
   const updateRange = () => {
     const layer = layerEl()
     if (!layer) return
-    const range = Math.max(0, document.documentElement.scrollHeight - innerHeight)
+    // The scroll timeline follows the scrollport, which is clientHeight, not
+    // innerHeight (they differ once a mobile toolbar is part of the layout).
+    const root = document.documentElement
+    const range = Math.max(0, root.scrollHeight - root.clientHeight)
     layer.style.setProperty('--scroll-range', `${range}px`)
   }
 
@@ -274,9 +297,9 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
     if (driver === 'a' && !supportsScrollTimeline()) {
       driver = 'b'
       layer.dataset.mode = 'b'
-      if (hud.driver) hud.driver.textContent = '不支持滚动动画 → 回退 B'
-    } else if (hud.driver) {
-      hud.driver.textContent =
+      setHud('不支持滚动动画 → 回退 B')
+    } else {
+      setHud(
         driver === 'a'
           ? 'CSS 滚动驱动动画'
           : driver === 'b'
@@ -284,6 +307,7 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
             : driver === 'c'
               ? '现行 scroll 事件'
               : '现行 scroll（无遮挡层）'
+      )
     }
 
     if (driver === 'a' || driver === 'b') {
@@ -333,6 +357,7 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
     try {
       anchorScroll = window.scrollY
       lastScroll = anchorScroll
+      lastViewportHeight = innerHeight
       setupDriver()
 
       const engineUrl = '/vendor/holo-stickers-1.0.0.min.js'
@@ -410,7 +435,8 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
     const y = window.scrollY
     const delta = y - lastScroll
     lastScroll = y
-    if (hud.scroll) hud.scroll.textContent = `scrollY ${Math.round(y)}`
+    const scrollNode = hudScroll()
+    if (scrollNode) scrollNode.textContent = `scrollY ${Math.round(y)}`
     fadeResidue()
 
     if (!board || !sticker) return
@@ -426,10 +452,35 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
     placeShield()
   }
 
+  // A mobile toolbar changing height moves the viewport centre by half the
+  // delta, and the engine re-clamps sticker.y on its own resize pass. Compensate
+  // after that pass so the sticker stays on the same document position.
+  // `resize` and `visualViewport.resize` can fire back to back, so the delta is
+  // accumulated and applied once, otherwise the second pass would cancel the
+  // first one's frame with a zero delta.
+  let pendingDelta = 0
   const onResize = () => {
+    const next = innerHeight
+    if (lastViewportHeight) pendingDelta += next - lastViewportHeight
+    lastViewportHeight = next
     updateRange()
     if (driver === 'b') applyLayerTransform()
-    startSync(600)
+    if (pendingResize) return
+    pendingResize = requestAnimationFrame(() => {
+      const delta = pendingDelta
+      pendingDelta = 0
+      pendingResize = 0
+      if (sticker && delta !== 0) {
+        sticker.y += delta / 2
+        board?.kick()
+        placeShield()
+      }
+      startSync(400)
+    })
+  }
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', onResize)
   }
 
   document.addEventListener('astro:page-load', mount)

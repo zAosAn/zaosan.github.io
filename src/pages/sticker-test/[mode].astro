@@ -12,7 +12,9 @@ export function getStaticPaths() {
     { params: { mode: 'b' } },
     { params: { mode: 'c' } },
     { params: { mode: 'd' } },
-    { params: { mode: 'e' } }
+    { params: { mode: 'e' } },
+    { params: { mode: 'g' } },
+    { params: { mode: 'h' } }
   ]
 }
 
@@ -22,7 +24,9 @@ const labels: Record<string, string> = {
   b: 'B · rAF + transform（遮挡层开）',
   c: 'C · 现行 scroll 事件（遮挡层开）',
   d: 'D · 现行 scroll 事件（无遮挡层，现状对照）',
-  e: 'E · 不跟随，txt 行为（无遮挡层）'
+  e: 'E · 不跟随，txt 行为（无遮挡层）',
+  g: 'G · 2× 画布（A + 画布上下各多半个视口，关闭重锚）',
+  h: 'H · 提前重锚（A，离边缘 12% 视口时重锚）'
 }
 
 const allPosts = await getSortedFilteredPosts()

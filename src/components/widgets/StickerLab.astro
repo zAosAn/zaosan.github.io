@@ -77,7 +77,7 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
     destroy: () => void
   }
 
-  type Driver = 'a' | 'b' | 'c' | 'd' | 'e'
+  type Driver = 'a' | 'b' | 'c' | 'd' | 'e' | 'g' | 'h'
 
   const LAYER_ID = 'holo-sticker-layer'
   const SOUND_KEY = 'chiri-sticker-sound'
@@ -90,6 +90,7 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
   let residueExt: { clear: () => void } | null = null
   let mounting = false
   let driver: Driver = 'a'
+  let requestedDriver: Driver = 'a'
   const stageOffset = { x: 0, y: 0 }
   let lastScroll = 0
   let residueTimer = 0
@@ -293,7 +294,9 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
     const stage = stageEl()
     if (!layer || !stage) return
     const requested = (layer.dataset.mode || 'a') as Driver
-    driver = requested
+    requestedDriver = requested
+    // G and H are A with extra behaviour; keep the scroll driver itself in a/b.
+    driver = requested === 'g' || requested === 'h' ? 'a' : requested
 
     if (driver === 'a' && !supportsScrollTimeline()) {
       driver = 'b'
@@ -301,17 +304,24 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
       setHud('不支持滚动动画 → 回退 B')
     } else {
       setHud(
-        driver === 'a'
-          ? 'CSS 滚动驱动动画'
-          : driver === 'b'
-            ? 'rAF + transform'
-            : driver === 'c'
-              ? '现行 scroll 事件'
-              : driver === 'd'
-                ? '现行 scroll（无遮挡层）'
-                : '不跟随（txt 行为）'
+        requested === 'g'
+          ? '2× 画布（A，关闭重锚）'
+          : requested === 'h'
+            ? '提前重锚（A，边距 12%）'
+            : driver === 'a'
+              ? 'CSS 滚动驱动动画'
+              : driver === 'b'
+                ? 'rAF + transform'
+                : driver === 'c'
+                  ? '现行 scroll 事件'
+                  : driver === 'd'
+                    ? '现行 scroll（无遮挡层）'
+                    : '不跟随（txt 行为）'
       )
     }
+
+    // G experiments with a canvas twice as tall; H is A with an earlier recenter.
+    if (requested === 'g') layer.dataset.canvas = 'double'
 
     if (driver === 'a' || driver === 'b') {
       stage.style.transform = `translate3d(${stageOffset.x}px, ${stageOffset.y}px, 0)`
@@ -323,14 +333,69 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
     }
   }
 
+  // G: the engine's drawing buffer only covers the viewport. Doubling its height
+  // (and re-deriving the camera for that height) gives the sticker half a viewport
+  // of extra drawable space above and below, at the cost of a flatter peel.
+  const expandCanvas = (instance: Board) => {
+    const layer = layerEl()
+    if (!layer || layer.dataset.canvas !== 'double') return
+    const stage = instance.stage as unknown as Record<string, any>
+    if (typeof stage.resize !== 'function' || !stage.canvas) return
+    const nativeResize = (stage.resize as () => void).bind(stage)
+
+    const apply = () => {
+      const width = innerWidth
+      const height = innerHeight * 2
+      const dpr = Math.min(devicePixelRatio, 2)
+      stage.width = width
+      stage.height = height
+      stage.dpr = dpr
+      stage.canvas.width = Math.floor(width * dpr)
+      stage.canvas.height = Math.floor(height * dpr)
+      const fov = (24 / 2) * (Math.PI / 180)
+      stage.distance = height / 2 / Math.tan(fov)
+      const near = 1
+      const far = stage.distance * 4
+      const n = near * Math.tan(fov)
+      const projection = stage.matrices.projectionMatrix.value
+      projection.fill(0)
+      projection[0] = near / (n * (width / height))
+      projection[5] = near / n
+      projection[10] = -(far + near) / (far - near)
+      projection[11] = -1
+      projection[14] = (-2 * far * near) / (far - near)
+      const view = stage.matrices.viewMatrix.value
+      view.fill(0)
+      view[0] = view[5] = view[10] = view[15] = 1
+      view[14] = -stage.distance
+      stage.matrices.cameraPosition.value.set(0, 0, stage.distance)
+      stage.shadowScale = dpr / 2
+      if (stage.gl && stage.sizeTarget) {
+        const sw = Math.max(1, Math.round(width * stage.shadowScale))
+        const sh = Math.max(1, Math.round(height * stage.shadowScale))
+        stage.sizeTarget(stage.shadowA, sw, sh)
+        stage.sizeTarget(stage.shadowB, sw, sh)
+      }
+    }
+
+    stage.resize = () => {
+      nativeResize()
+      apply()
+    }
+    apply()
+  }
+
   // The layer is moved with a compositor transform, so the engine's pointer
   // maths (which assumes a viewport-fixed stage) needs the stage offset back.
   const patchStage = (instance: Board) => {
     if (driver !== 'a' && driver !== 'b') return
     const stage = instance.stage
     const nativeToWorld = stage.toWorld.bind(stage)
+    // With the doubled canvas the element is centred on the viewport, so the
+    // engine's height/2 centre sits half a viewport lower.
+    const canvasExtra = layerEl()?.dataset.canvas === 'double' ? innerHeight / 2 : 0
     stage.toWorld = (x: number, y: number, z = 0) =>
-      nativeToWorld(x - stageOffset.x, y - stageOffset.y + window.scrollY, z)
+      nativeToWorld(x - stageOffset.x, y - stageOffset.y + window.scrollY + canvasExtra, z)
   }
 
   // The canvas is only as tall as the viewport and is moved with the page, so its
@@ -340,12 +405,16 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
   // on screen, the canvas re-centres on it, and nothing stays clipped.
   const recenterCanvas = () => {
     if (!sticker || (driver !== 'a' && driver !== 'b')) return
+    // The doubled canvas already gives room on both sides.
+    if (layerEl()?.dataset.canvas === 'double') return
     const [width, height] = sticker.geo.size
     const cos = Math.abs(Math.cos((sticker.rot * Math.PI) / 180))
     const sin = Math.abs(Math.sin((sticker.rot * Math.PI) / 180))
     const halfX = (width * cos + height * sin) / 2
     const halfY = (height * cos + width * sin) / 2
-    const margin = 16
+    // H re-centres once the sticker is still far from the edge, so the drag that
+    // reaches the edge rarely clips at all.
+    const margin = requestedDriver === 'h' ? Math.min(innerWidth, innerHeight) * 0.12 : 16
     const vw = innerWidth
     const vh = innerHeight
     // sticker centre in the canvas' own coordinate system
@@ -432,6 +501,7 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
       residueExt = instance.use(extras.residue()) as { clear: () => void }
       instance.use(extras.bubbles())
       patchStage(instance)
+      expandCanvas(instance)
 
       if (sticker) {
         placeSticker()
@@ -586,6 +656,13 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
     to {
       transform: translate3d(0, calc(-1 * var(--scroll-range, 0px)), 0);
     }
+  }
+
+  /* G: twice as tall, centred on the viewport; the buffer is resized in JS. */
+  .holo-sticker-layer[data-canvas='double'] .hs-canvas {
+    top: -50dvh;
+    bottom: auto;
+    height: 200dvh;
   }
 
   .sticker-shield {

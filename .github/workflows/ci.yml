@@ -54,7 +54,7 @@ jobs:
         continue-on-error: true
 
       - name: Type check
-        run: tsc --noEmit
+        run: pnpm exec tsc --noEmit
 
       - name: Build
         run: pnpm build

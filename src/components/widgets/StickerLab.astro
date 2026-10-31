@@ -77,7 +77,7 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
     destroy: () => void
   }
 
-  type Driver = 'a' | 'b' | 'c' | 'd'
+  type Driver = 'a' | 'b' | 'c' | 'd' | 'e'
 
   const LAYER_ID = 'holo-sticker-layer'
   const SOUND_KEY = 'chiri-sticker-sound'
@@ -90,7 +90,7 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
   let residueExt: { clear: () => void } | null = null
   let mounting = false
   let driver: Driver = 'a'
-  let anchorScroll = 0
+  const stageOffset = { x: 0, y: 0 }
   let lastScroll = 0
   let residueTimer = 0
   let residueHidden = false
@@ -197,6 +197,7 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
 
   const tickSync = () => {
     syncRaf = 0
+    if (sticker?.mode === 'stuck') recenterCanvas()
     syncShield()
     if (pointerActive || performance.now() < syncUntil) syncRaf = requestAnimationFrame(tickSync)
   }
@@ -306,12 +307,14 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
             ? 'rAF + transform'
             : driver === 'c'
               ? '现行 scroll 事件'
-              : '现行 scroll（无遮挡层）'
+              : driver === 'd'
+                ? '现行 scroll（无遮挡层）'
+                : '不跟随（txt 行为）'
       )
     }
 
     if (driver === 'a' || driver === 'b') {
-      stage.style.transform = `translate3d(0, ${anchorScroll}px, 0)`
+      stage.style.transform = `translate3d(${stageOffset.x}px, ${stageOffset.y}px, 0)`
       updateRange()
       if (driver === 'b') applyLayerTransform()
     } else {
@@ -321,12 +324,48 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
   }
 
   // The layer is moved with a compositor transform, so the engine's pointer
-  // maths (which assumes a viewport-fixed stage) needs the scroll offset back.
+  // maths (which assumes a viewport-fixed stage) needs the stage offset back.
   const patchStage = (instance: Board) => {
     if (driver !== 'a' && driver !== 'b') return
     const stage = instance.stage
     const nativeToWorld = stage.toWorld.bind(stage)
-    stage.toWorld = (x: number, y: number, z = 0) => nativeToWorld(x, y + (window.scrollY - anchorScroll), z)
+    stage.toWorld = (x: number, y: number, z = 0) =>
+      nativeToWorld(x - stageOffset.x, y - stageOffset.y + window.scrollY, z)
+  }
+
+  // The canvas is only as tall as the viewport and is moved with the page, so its
+  // drawable range is fixed in document space. When the sticker is dragged close
+  // to that range's edge, the part outside is never rasterised. Shift the stage
+  // and the sticker's own coordinates by the same amount: the sticker stays put
+  // on screen, the canvas re-centres on it, and nothing stays clipped.
+  const recenterCanvas = () => {
+    if (!sticker || (driver !== 'a' && driver !== 'b')) return
+    const [width, height] = sticker.geo.size
+    const cos = Math.abs(Math.cos((sticker.rot * Math.PI) / 180))
+    const sin = Math.abs(Math.sin((sticker.rot * Math.PI) / 180))
+    const halfX = (width * cos + height * sin) / 2
+    const halfY = (height * cos + width * sin) / 2
+    const margin = 16
+    const vw = innerWidth
+    const vh = innerHeight
+    // sticker centre in the canvas' own coordinate system
+    const stageX = vw / 2 + sticker.x
+    const stageY = vh / 2 - sticker.y
+    let dx = 0
+    let dy = 0
+    if (stageX - halfX < margin) dx = stageX - halfX - margin
+    else if (stageX + halfX > vw - margin) dx = stageX + halfX - (vw - margin)
+    if (stageY - halfY < margin) dy = stageY - halfY - margin
+    else if (stageY + halfY > vh - margin) dy = stageY + halfY - (vh - margin)
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return
+    stageOffset.x += dx
+    stageOffset.y += dy
+    sticker.x -= dx
+    sticker.y += dy
+    const stage = stageEl()
+    if (stage) stage.style.transform = `translate3d(${stageOffset.x}px, ${stageOffset.y}px, 0)`
+    board?.kick()
+    placeShield()
   }
 
   // Centre of the sticker anywhere in the viewport, but let it hang over an edge
@@ -355,8 +394,9 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
 
     mounting = true
     try {
-      anchorScroll = window.scrollY
-      lastScroll = anchorScroll
+      stageOffset.x = 0
+      stageOffset.y = window.scrollY
+      lastScroll = window.scrollY
       lastViewportHeight = innerHeight
       setupDriver()
 
@@ -437,6 +477,10 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
     lastScroll = y
     const scrollNode = hudScroll()
     if (scrollNode) scrollNode.textContent = `scrollY ${Math.round(y)}`
+
+    // E is the txt behaviour: the sticker stays where it is, smudges stay put.
+    if (driver === 'e') return
+
     fadeResidue()
 
     if (!board || !sticker) return

@@ -7,7 +7,13 @@ import { themeConfig } from '@/config'
 import { getSortedFilteredPosts } from '@/utils/draft'
 
 export function getStaticPaths() {
-  return [{ params: { mode: 'a' } }, { params: { mode: 'b' } }, { params: { mode: 'c' } }, { params: { mode: 'd' } }]
+  return [
+    { params: { mode: 'a' } },
+    { params: { mode: 'b' } },
+    { params: { mode: 'c' } },
+    { params: { mode: 'd' } },
+    { params: { mode: 'e' } }
+  ]
 }
 
 const { mode = 'a' } = Astro.params
@@ -15,13 +21,14 @@ const labels: Record<string, string> = {
   a: 'A · CSS 滚动驱动动画（遮挡层开）',
   b: 'B · rAF + transform（遮挡层开）',
   c: 'C · 现行 scroll 事件（遮挡层开）',
-  d: 'D · 现行 scroll 事件（无遮挡层，作为现状对照）'
+  d: 'D · 现行 scroll 事件（无遮挡层，现状对照）',
+  e: 'E · 不跟随，txt 行为（无遮挡层）'
 }
 
 const allPosts = await getSortedFilteredPosts()
 const limit = themeConfig.post.postListLimit
 const posts = limit > 0 ? allPosts.slice(0, limit) : allPosts
-const shield = mode !== 'd'
+const shield = mode !== 'd' && mode !== 'e'
 ---
 
 <IndexLayout title={`贴纸测试 ${mode.toUpperCase()}`} description="贴纸滚动方案对比测试页">

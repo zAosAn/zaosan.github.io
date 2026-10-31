@@ -25,6 +25,9 @@ pnpm-lock.yaml
 .DS_Store
 coverage/
 
+# Vendored libraries: committed as-is, never reformatted
+public/vendor/
+
 # Media files
 *.png
 *.jpg

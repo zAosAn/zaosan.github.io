@@ -15,7 +15,9 @@ const totalTags = groups.length
     <header class="tags-head">
       <div class="tags-head-left">
         <span class="tags-label">Tags</span>
-        <a class="tags-switch" href="/allpost/">[goPost]</a>
+        <a class="tags-switch" href="/allpost/">
+          [goPost]
+        </a>
       </div>
       <span class="tags-count">{totalTags} tags</span>
     </header>
@@ -23,11 +25,7 @@ const totalTags = groups.length
     <ul class="tag-cloud" role="list">
       {groups.map((group) => (
         <li>
-          <a
-            class="tag-chip"
-            href={`#${encodeURIComponent(group.name)}`}
-            data-tag-link={group.name}
-          >
+          <a class="tag-chip" href={`#${encodeURIComponent(group.name)}`} data-tag-link={group.name}>
             <span class="tag-name">{group.name}</span>
             <span class="tag-count">{group.posts.length}</span>
           </a>

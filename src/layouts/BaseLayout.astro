@@ -38,18 +38,16 @@ const finalWidth = shouldUseCustomWidth ? `${widthValue}rem` : '25rem'
       })()
     </script>
     {fadeAnimation && <ClientRouter />}
-    {fadeAnimation && (
-      <script is:inline>
-        window.addEventListener('pagereveal', (event) => {
-          const transition = event.viewTransition
-          const activation = window.navigation?.activation
-          if (!transition?.types || !activation?.from || !activation.entry) return
-          if (activation.entry.index < activation.from.index) {
-            transition.types.add('backwards')
-          }
-        })
-      </script>
-    )}
+    {fadeAnimation && <script is:inline>
+      window.addEventListener('pagereveal', (event) => {
+        const transition = event.viewTransition
+        const activation = window.navigation?.activation
+        if (!transition?.types || !activation?.from || !activation.entry) return
+        if (activation.entry.index < activation.from.index) {
+          transition.types.add('backwards')
+        }
+      })
+    </script>}
     <slot name="head" />
   </head>
   <body

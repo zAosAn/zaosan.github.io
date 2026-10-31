@@ -248,6 +248,7 @@ const { count = 1, follow = 'auto', block } = Astro.props as Props
 
   const tickSync = () => {
     syncRaf = 0
+    recenterAfterSettle()
     syncShields()
     if (pointerActive || performance.now() < syncUntil) syncRaf = requestAnimationFrame(tickSync)
   }
@@ -336,6 +337,7 @@ const { count = 1, follow = 'auto', block } = Astro.props as Props
 
       board = instance
       stickers = instance.stickers.slice()
+      lastMode = ''
       residueExt = instance.use(extras.residue()) as { clear: () => void }
       instance.use(extras.bubbles())
 
@@ -370,6 +372,7 @@ const { count = 1, follow = 'auto', block } = Astro.props as Props
     const instance = board
     board = null
     stickers = []
+    lastMode = ''
     residueExt = null
     clearTimeout(residueTimer)
     if (pendingShift) {
@@ -392,6 +395,7 @@ const { count = 1, follow = 'auto', block } = Astro.props as Props
   // together. The sticker stays put on screen while the drawable canvas follows
   // it, so a sticker dragged to an edge is never clipped for good.
   let pendingShift = 0
+  let lastMode = ''
   const applyVerticalShift = () => {
     if (!followActive || stickers.length !== 1) return
     const sticker = stickers[0]
@@ -404,24 +408,53 @@ const { count = 1, follow = 'auto', block } = Astro.props as Props
     for (const entry of shields) placeShield(entry)
   }
 
-  // A: the layer is driven by a scroll animation, so the JS only has to keep the
-  // smudges tidy and re-centre the canvas vertically.
-  const onScroll = () => {
-    if (!followActive) return
-    lastScroll = window.scrollY
-    const wasHidden = residueHidden
-    fadeResidue()
-    if (stickers.length !== 1 || stickers[0].y === 0 || pendingShift) return
-    // The smudges live in the same stage; shifting it would move them abruptly.
-    // Wait for the fade (already started above) before moving the canvas.
-    if (wasHidden) {
+  // The shift moves the smudges too, so fade them out first and only then move
+  // the canvas; otherwise they jump.
+  const scheduleVerticalShift = () => {
+    if (!followActive || stickers.length !== 1 || pendingShift) return
+    const canvases = residueCanvases()
+    const hasSmudges =
+      !residueHidden &&
+      canvases.some((canvas) => {
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return false
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+        for (let i = 3; i < data.length; i += 4) if (data[i] > 0) return true
+        return false
+      })
+    if (!hasSmudges) {
       applyVerticalShift()
       return
     }
+    residueHidden = true
+    clearTimeout(residueTimer)
+    for (const canvas of canvases) {
+      canvas.style.transition = 'opacity 120ms ease-out'
+      canvas.style.opacity = '0'
+    }
+    residueTimer = window.setTimeout(() => {
+      residueExt?.clear()
+    }, 140)
     pendingShift = window.setTimeout(() => {
       pendingShift = 0
       applyVerticalShift()
-    }, RESIDUE_FADE_MS + 60)
+    }, 150)
+  }
+
+  // Re-centre as soon as the sticker is put back down, not on scroll.
+  const recenterAfterSettle = () => {
+    if (!followActive || stickers.length !== 1) return
+    const sticker = stickers[0]
+    if (sticker.mode === 'stuck' && lastMode !== 'stuck') scheduleVerticalShift()
+    lastMode = sticker.mode
+  }
+
+  // A: the layer is driven by a scroll animation, so the JS only has to keep the
+  // smudges tidy.
+  const onScroll = () => {
+    if (!followActive) return
+    lastScroll = window.scrollY
+    fadeResidue()
   }
 
   const onResize = () => {

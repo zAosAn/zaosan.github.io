@@ -6,10 +6,13 @@ import Sticker from '@/components/widgets/Sticker.astro'
 
 <IndexLayout title="Sticker show" description="三张贴纸的随机展示">
   <About />
+  <div class="sticker-show-actions">
+    <button id="sticker-reroll" type="button">
+      [ReRoll]
+    </button>
+    <p>该页面尺寸已被锁定，作为展示页面</p>
+  </div>
   <Sticker count={3} follow="fixed" block={true} />
-  <button id="sticker-reroll" type="button">
-    [ReRoll]
-  </button>
 </IndexLayout>
 
 <script is:inline>
@@ -48,12 +51,19 @@ import Sticker from '@/components/widgets/Sticker.astro'
     height: 100dvh;
   }
 
-  #sticker-reroll {
+  /* Below the sticker layer (z-index 2 inside .layout-wrapper) on purpose: a
+     sticker that lands here is allowed to cover and block this button. */
+  .sticker-show-actions {
     position: fixed;
     left: 50%;
     top: 50%;
+    z-index: 0;
     transform: translate(-50%, -50%);
-    z-index: 60;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #sticker-reroll {
     padding: 0.4rem 0.75rem;
     border: 0;
     border-radius: 0.25rem;
@@ -63,11 +73,19 @@ import Sticker from '@/components/widgets/Sticker.astro'
     font-size: var(--font-size-s);
     letter-spacing: 0.02em;
     cursor: pointer;
-    backdrop-filter: blur(4px);
+    pointer-events: auto;
   }
 
   #sticker-reroll:hover,
   #sticker-reroll:focus-visible {
     background: rgba(0, 0, 0, 0.8);
+  }
+
+  .sticker-show-actions p {
+    margin: 0.5rem 0 0;
+    font-family: var(--sans);
+    font-size: 11px;
+    letter-spacing: 0.01em;
+    color: var(--text-tertiary);
   }
 </style>

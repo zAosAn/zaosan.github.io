@@ -1,6 +1,12 @@
 {
   "version": 1,
-  "stickers": ["Character_Robin_Eidolon_4.png", "Seele_-_Herrscher_of_Rebirth_29.webp", "qx.gif"],
+  "stickers": [
+    "Character_Robin_Eidolon_4.png",
+    "Seele_-_Herrscher_of_Rebirth_29.webp",
+    "deepseek-memecub.png",
+    "qx.gif",
+    "tfls.gif"
+  ],
   "params": {
     "Character_Robin_Eidolon_4.png": {
       "cut": 0.03,
@@ -16,12 +22,26 @@
       "width": 170,
       "look": { "bands": 1.22, "dispersion": 0.74, "flake": 1.9 }
     },
+    "deepseek-memecub.png": {
+      "cut": 0.046,
+      "finish": "chrome",
+      "material": "vinyl",
+      "width": 140,
+      "look": { "bands": 1.37, "dispersion": 0.37, "flake": 2.2 }
+    },
     "qx.gif": {
       "cut": 0.045,
       "finish": "chrome",
       "material": "vinyl",
       "width": 132,
       "look": { "bands": 0.91, "dispersion": 0.58, "flake": 2.2 }
+    },
+    "tfls.gif": {
+      "cut": 0.065,
+      "finish": "print",
+      "material": "paper",
+      "width": 132,
+      "look": { "bands": 1.02, "dispersion": 0.3, "flake": 2.6 }
     }
   }
 }

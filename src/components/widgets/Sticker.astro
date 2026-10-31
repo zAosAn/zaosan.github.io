@@ -1,25 +1,62 @@
 ---
-// Peelable holographic stickers, built from `localres/贴纸效果.txt`.
+// Peelable holographic stickers.
 //
-// The engine and extras are vendored, unmodified, from jhey.dev into
-// public/vendor and imported at runtime, so they never touch the build.
-// The three stickers below are exactly the ones from that file: same ids,
-// src paths, cut / finish / material / width / at / rotation / look values.
-// Each page view shows one of them at random; the sticker follows the page
-// scroll and its smudges fade out when the page moves.
+// A = CSS scroll-driven animation: the sticker is anchored in the document and
+//     the rendering layer is translated by the compositor. The click/hover shield
+//     follows the cut shape, and the canvas is re-centred vertically on every
+//     scroll so a sticker dragged to an edge is never permanently clipped.
+// E = the txt behaviour: the sticker stays in the viewport, nothing scrolls it,
+//     and nothing is blocked. Used when the browser is Safari or lacks scroll
+//     timelines.
+//
+// Parameters come from public/stickers/stickers.json, next to the images.
+import fs from 'node:fs'
+import path from 'node:path'
+
+interface StickerParams {
+  cut: number
+  finish: string
+  material: string
+  width: number
+  look: Record<string, number>
+}
+
+interface Manifest {
+  version: number
+  stickers: string[]
+  params: Record<string, StickerParams>
+}
+
+const manifestPath = path.join(process.cwd(), 'public', 'stickers', 'stickers.json')
+const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Manifest
+const specs = manifest.stickers.map((file) => ({
+  id: file.replace(/\.[^.]+$/, ''),
+  src: `/stickers/${encodeURIComponent(file)}`,
+  ...(manifest.params[file] ?? {})
+}))
+
+interface Props {
+  count?: number
+  follow?: 'auto' | 'fixed'
+  block?: boolean
+}
+
+const { count = 1, follow = 'auto', block } = Astro.props as Props
 ---
 
-<div id="holo-sticker-layer" class="holo-sticker-layer"></div>
+<div
+  id="holo-sticker-layer"
+  class="holo-sticker-layer"
+  data-count={count}
+  data-follow={follow}
+  data-block={block === undefined ? 'auto' : String(block)}
+>
+  <div class="sticker-stage"></div>
+</div>
+
+<script type="application/json" id="sticker-specs" set:html={JSON.stringify(specs)}></script>
 
 <script>
-  type Board = {
-    stickers: { x: number; y: number }[]
-    use: (extension: unknown) => unknown
-    set: (options: { sound?: boolean }) => void
-    kick: () => void
-    destroy: () => void
-  }
-
   type StickerSpec = {
     id: string
     src: string
@@ -27,65 +64,93 @@
     finish: string
     material: string
     width: number
-    at: [number, number]
-    rotation: number
-    look: { bands: number; dispersion: number; flake: number }
+    look: Record<string, number>
+  }
+
+  type Geo = {
+    size: [number, number]
+    hit: (x: number, y: number) => boolean
+  }
+
+  type Sticker = {
+    x: number
+    y: number
+    rot: number
+    mode: string
+    geo: Geo
+  }
+
+  type Board = {
+    stickers: Sticker[]
+    stage: { toWorld: (x: number, y: number, z?: number) => [number, number] }
+    use: (extension: unknown) => unknown
+    set: (options: { sound?: boolean }) => void
+    kick: () => void
+    destroy: () => void
   }
 
   const LAYER_ID = 'holo-sticker-layer'
   const SOUND_KEY = 'chiri-sticker-sound'
-
-  // Copied verbatim from localres/贴纸效果.txt.
-  const STICKERS: StickerSpec[] = [
-    {
-      id: 'seele-herrscher-of-rebirth-29',
-      src: '/stickers/Seele_-_Herrscher_of_Rebirth_29.webp',
-      cut: 0.036,
-      finish: 'clear',
-      material: 'rigid',
-      width: 170,
-      at: [-0.02, 0.264],
-      rotation: 580.4,
-      look: { bands: 1.22, dispersion: 0.74, flake: 1.9 }
-    },
-    {
-      id: 'character-robin-eidolon-4',
-      src: '/stickers/Character_Robin_Eidolon_4.png',
-      cut: 0.03,
-      finish: 'print',
-      material: 'rigid',
-      width: 134,
-      at: [0.019, -0.046],
-      rotation: -19.1,
-      look: { bands: 1.79, dispersion: 0.51, flake: 2.5 }
-    },
-    {
-      id: 'qx',
-      src: '/stickers/qx.gif',
-      cut: 0.045,
-      finish: 'chrome',
-      material: 'vinyl',
-      width: 132,
-      at: [-0.171, 0.082],
-      rotation: 22.1,
-      look: { bands: 0.91, dispersion: 0.58, flake: 2.2 }
-    }
-  ]
+  const RESIDUE_FADE_MS = 300
+  const SVG_NS = 'http://www.w3.org/2000/svg'
 
   let board: Board | null = null
+  let stickers: Sticker[] = []
+  let shields: { sticker: Sticker; svg: SVGSVGElement }[] = []
+  let residueExt: { clear: () => void } | null = null
   let mounting = false
-  let lastScroll = window.scrollY
+  let followActive = false
+  let blockActive = false
+  let anchorScroll = 0
+  let lastScroll = 0
   let residueTimer = 0
   let residueHidden = false
-  // The residue extension keeps its own full-viewport buffers and repaints the
-  // visible canvas from them on the next peel, so fading the canvas alone is not
-  // enough: the buffers have to be cleared through its own `clear()`.
-  let residueExt: { clear: () => void } | null = null
+  let syncRaf = 0
+  let syncUntil = 0
+  let pointerActive = false
 
-  // The engine paints smudges onto viewport-fixed canvases. Once the sticker
-  // follows the page they no longer line up with anything, so let them fade out
-  // on scroll and drop the pixels afterwards.
-  const RESIDUE_FADE_MS = 300
+  const layerEl = () => document.getElementById(LAYER_ID)
+  const stageEl = () => layerEl()?.querySelector('.sticker-stage') as HTMLElement | null
+
+  const readSound = () => {
+    try {
+      return localStorage.getItem(SOUND_KEY) !== 'off'
+    } catch {
+      return true
+    }
+  }
+
+  const readSpecs = (): StickerSpec[] => {
+    const node = document.getElementById('sticker-specs')
+    if (!node?.textContent) return []
+    try {
+      return JSON.parse(node.textContent) as StickerSpec[]
+    } catch {
+      return []
+    }
+  }
+
+  const scaledWidth = (width: number) => {
+    const vw = innerWidth
+    const scale = vw < 480 ? 0.62 : vw < 768 ? 0.75 : vw < 1024 ? 0.88 : 1
+    return Math.round(width * scale)
+  }
+
+  // Safari (desktop and iOS) and anything without scroll-driven animations use
+  // the txt behaviour instead: fixed in the viewport, no blocking.
+  const isSafari = () => {
+    const ua = navigator.userAgent
+    const safari = /Safari\//.test(ua) && !/(Chrome|Chromium|CriOS|FxiOS|EdgiOS|OPiOS|Android)/.test(ua)
+    return safari
+  }
+
+  const supportsScrollTimeline = () => {
+    try {
+      return CSS.supports('animation-timeline: scroll()') || CSS.supports('animation-timeline', 'scroll(root block)')
+    } catch {
+      return false
+    }
+  }
 
   const residueCanvases = () =>
     Array.from(document.querySelectorAll<HTMLCanvasElement>('.hs-under.hs-residue, .hs-under.hs-crumbs'))
@@ -100,14 +165,10 @@
       canvas.style.opacity = '0'
     }
     residueTimer = window.setTimeout(() => {
-      // Fade is over: throw away the smudges in the extension's buffers too,
-      // otherwise the next peel would paint them again at full opacity.
       residueExt?.clear()
     }, RESIDUE_FADE_MS + 20)
   }
 
-  // The next press starts from a clean slate: the old smudges are already gone,
-  // so the canvas can be shown again without a flash of stale marks.
   const resetResidue = () => {
     if (!residueHidden) return
     residueHidden = false
@@ -119,64 +180,182 @@
     }
   }
 
-  const isHome = () => location.pathname.replace(/index\.html$/, '') === '/'
+  // The engine only exposes the cut shape through geo.hit; the shield is a path
+  // rasterised from it so clicks and hover never reach the content underneath.
+  const shieldPath = (sticker: Sticker) => {
+    const geo = sticker.geo
+    const [width, height] = geo.size
+    const step = 2
+    const rows = Math.ceil(height / step)
+    const cols = Math.ceil(width / step)
+    const parts: string[] = []
+    for (let row = 0; row < rows; row++) {
+      const top = height / 2 - row * step
+      const y = top - step / 2
+      let run = -1
+      for (let col = 0; col <= cols; col++) {
+        const inside = col < cols && geo.hit(-width / 2 + col * step + step / 2, y)
+        if (inside && run < 0) {
+          run = col
+        } else if (!inside && run >= 0) {
+          const x0 = width / 2 + (-width / 2 + run * step)
+          const x1 = width / 2 + (-width / 2 + col * step)
+          const y0 = height / 2 - top
+          parts.push(`M${x0.toFixed(1)} ${y0.toFixed(1)}H${x1.toFixed(1)}V${(y0 + step).toFixed(1)}H${x0.toFixed(1)}Z`)
+          run = -1
+        }
+      }
+    }
+    return parts.join('')
+  }
 
-  const readSound = () => {
-    try {
-      return localStorage.getItem(SOUND_KEY) !== 'off'
-    } catch {
-      return true
+  const placeShield = (entry: { sticker: Sticker; svg: SVGSVGElement }) => {
+    const [width, height] = entry.sticker.geo.size
+    entry.svg.style.transform = `translate3d(${entry.sticker.x}px, ${-entry.sticker.y}px, 0) rotate(${-entry.sticker
+      .rot}deg) translate(${-width / 2}px, ${-height / 2}px)`
+  }
+
+  const buildShields = () => {
+    const stage = stageEl()
+    if (!stage) return
+    for (const sticker of stickers) {
+      const [width, height] = sticker.geo.size
+      const svg = document.createElementNS(SVG_NS, 'svg')
+      svg.setAttribute('class', 'sticker-shield')
+      svg.setAttribute('aria-hidden', 'true')
+      svg.setAttribute('viewBox', `0 0 ${width} ${height}`)
+      svg.style.width = `${width}px`
+      svg.style.height = `${height}px`
+      const shape = document.createElementNS(SVG_NS, 'path')
+      shape.setAttribute('d', shieldPath(sticker))
+      shape.setAttribute('fill', 'rgba(0, 0, 0, 0)')
+      shape.setAttribute('pointer-events', 'all')
+      svg.appendChild(shape)
+      stage.appendChild(svg)
+      const entry = { sticker, svg }
+      shields.push(entry)
+      placeShield(entry)
     }
   }
 
-  // The txt file only targets a desktop viewport, so phones get the same
-  // sticker at the same fraction of the viewport, just smaller.
-  const scaledWidth = (width: number) => {
-    const vw = innerWidth
-    const scale = vw < 480 ? 0.45 : vw < 768 ? 0.6 : vw < 1024 ? 0.8 : 1
-    return Math.round(width * scale)
+  const syncShields = () => {
+    for (const entry of shields) {
+      const stuck = entry.sticker.mode === 'stuck'
+      entry.svg.style.display = stuck ? '' : 'none'
+      if (stuck) placeShield(entry)
+    }
+  }
+
+  const tickSync = () => {
+    syncRaf = 0
+    syncShields()
+    if (pointerActive || performance.now() < syncUntil) syncRaf = requestAnimationFrame(tickSync)
+  }
+
+  const startSync = (ms = 900) => {
+    syncUntil = Math.max(syncUntil, performance.now() + ms)
+    if (!syncRaf) syncRaf = requestAnimationFrame(tickSync)
+  }
+
+  const randomPlacement = (width: number, height: number) => {
+    const overflow = Math.min(Math.min(width, height) * 0.15, 24)
+    const minX = width / 2 - overflow
+    const maxX = innerWidth - width / 2 + overflow
+    const minY = height / 2 - overflow
+    const maxY = innerHeight - height / 2 + overflow
+    const x = maxX > minX ? minX + Math.random() * (maxX - minX) : innerWidth / 2
+    const y = maxY > minY ? minY + Math.random() * (maxY - minY) : innerHeight / 2
+    return { x, y }
+  }
+
+  const applyStageOffset = () => {
+    const stage = stageEl()
+    if (stage) stage.style.transform = `translate3d(0, ${anchorScroll}px, 0)`
+  }
+
+  const updateRange = () => {
+    const layer = layerEl()
+    if (!layer) return
+    const root = document.documentElement
+    layer.style.setProperty('--scroll-range', `${Math.max(0, root.scrollHeight - root.clientHeight)}px`)
   }
 
   const mount = async () => {
-    // `astro:page-load` and the first-visit call below can land in the same
-    // tick; without this flag both would create a board.
-    if (mounting || board || !isHome()) return
-    const layer = document.getElementById(LAYER_ID)
-    if (!layer) return
+    if (mounting || board) return
+    const layer = layerEl()
+    const stage = stageEl()
+    if (!layer || !stage) return
+    const specs = readSpecs()
+    if (specs.length === 0) return
+
     mounting = true
     try {
-      // Runtime-only imports so the engine stays a plain file in public/vendor.
+      const requested = layer.dataset.follow === 'fixed' ? false : true
+      followActive = requested && !isSafari() && supportsScrollTimeline()
+      const blockSetting = layer.dataset.block
+      blockActive = blockSetting === 'auto' ? followActive : blockSetting === 'true'
+
+      if (followActive) {
+        layer.dataset.active = 'follow'
+        anchorScroll = window.scrollY
+        lastScroll = anchorScroll
+        applyStageOffset()
+        updateRange()
+      }
+
       const engineUrl = '/vendor/holo-stickers-1.0.0.min.js'
       const extrasUrl = '/vendor/holo-stickers-extras-1.0.0.min.js'
       const engine = await import(/* @vite-ignore */ engineUrl)
       const extras = await import(/* @vite-ignore */ extrasUrl)
 
-      // The layer can be swapped away while the modules are loading.
-      if (!isHome() || !layer.isConnected) return
+      if (!layer.isConnected || !stage.isConnected) return
 
-      // One sticker per page view, picked at random from the three in the txt.
-      const spec = STICKERS[Math.floor(Math.random() * STICKERS.length)]
+      const count = Math.max(1, Number(layer.dataset.count) || 1)
+      const pool = [...specs]
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[pool[i], pool[j]] = [pool[j], pool[i]]
+      }
+      const chosen = Array.from({ length: count }, (_, index) => pool[index % pool.length])
 
       const instance: Board = await engine.createStickers({
-        container: layer,
-        stickers: [{ ...spec, width: scaledWidth(spec.width) }],
-        // Muted at first: creating the board fires a burst of intro sounds, and
-        // resuming audio before a gesture only produces rejected promises.
+        container: stage,
+        stickers: chosen.map((spec) => ({
+          ...spec,
+          width: scaledWidth(spec.width),
+          rotation: Math.round((Math.random() * 2 - 1) * 45),
+          at: [0, 0]
+        })),
         sound: false
       })
-      if (!isHome() || !layer.isConnected) {
+
+      if (!layer.isConnected || !stage.isConnected) {
         instance.destroy()
         return
       }
+
+      board = instance
+      stickers = instance.stickers.slice()
       residueExt = instance.use(extras.residue()) as { clear: () => void }
       instance.use(extras.bubbles())
-      board = instance
-      lastScroll = window.scrollY
-      residueHidden = false
-      clearTimeout(residueTimer)
 
-      // Unmute on the first real gesture, which also satisfies the browser's
-      // autoplay policy for the audio context.
+      if (followActive) {
+        const native = instance.stage.toWorld.bind(instance.stage)
+        instance.stage.toWorld = (x: number, y: number, z = 0) => native(x, y - anchorScroll + window.scrollY, z)
+      }
+
+      for (const sticker of stickers) {
+        const [width, height] = sticker.geo.size
+        const target = randomPlacement(width, height)
+        sticker.x = target.x - innerWidth / 2
+        sticker.y = innerHeight / 2 - target.y
+      }
+      instance.kick()
+
+      if (blockActive) buildShields()
+      syncShields()
+      startSync(1800)
+
       const enableSound = () => {
         window.removeEventListener('pointerdown', enableSound, true)
         if (board === instance && readSound()) instance.set({ sound: true })
@@ -190,38 +369,93 @@
   const unmount = () => {
     const instance = board
     board = null
+    stickers = []
     residueExt = null
     clearTimeout(residueTimer)
+    if (pendingShift) {
+      clearTimeout(pendingShift)
+      pendingShift = 0
+    }
     residueHidden = false
+    if (syncRaf) cancelAnimationFrame(syncRaf)
+    syncRaf = 0
+    for (const entry of shields) entry.svg.remove()
+    shields = []
     if (!instance) return
-    // Tearing the board down replays every sticker's "reset", which would start
-    // the audio context again and reject on close; mute first and drop the
-    // pending standby timer so it cannot suspend a closed context.
     instance.set({ sound: false })
     const sound = (instance as unknown as { sound?: { idle?: number } }).sound
     if (sound?.idle) clearTimeout(sound.idle)
     instance.destroy()
   }
 
-  // The engine keeps stickers fixed to the viewport; shifting them by the
-  // scroll delta makes them sit on the page instead.
-  const followScroll = () => {
-    const y = window.scrollY
-    const delta = y - lastScroll
-    lastScroll = y
+  // Re-centre vertically: shift the stage and the sticker's own coordinates
+  // together. The sticker stays put on screen while the drawable canvas follows
+  // it, so a sticker dragged to an edge is never clipped for good.
+  let pendingShift = 0
+  const applyVerticalShift = () => {
+    if (!followActive || stickers.length !== 1) return
+    const sticker = stickers[0]
+    const shift = sticker.y
+    if (shift === 0) return
+    anchorScroll -= shift
+    sticker.y = 0
+    applyStageOffset()
+    board?.kick()
+    for (const entry of shields) placeShield(entry)
+  }
+
+  // A: the layer is driven by a scroll animation, so the JS only has to keep the
+  // smudges tidy and re-centre the canvas vertically.
+  const onScroll = () => {
+    if (!followActive) return
+    lastScroll = window.scrollY
+    const wasHidden = residueHidden
     fadeResidue()
-    if (!board || delta === 0) return
-    for (const sticker of board.stickers) sticker.y += delta
-    board.kick()
+    if (stickers.length !== 1 || stickers[0].y === 0 || pendingShift) return
+    // The smudges live in the same stage; shifting it would move them abruptly.
+    // Wait for the fade (already started above) before moving the canvas.
+    if (wasHidden) {
+      applyVerticalShift()
+      return
+    }
+    pendingShift = window.setTimeout(() => {
+      pendingShift = 0
+      applyVerticalShift()
+    }, RESIDUE_FADE_MS + 60)
+  }
+
+  const onResize = () => {
+    if (!followActive) return
+    updateRange()
+    startSync(400)
   }
 
   document.addEventListener('astro:page-load', mount)
   document.addEventListener('astro:before-swap', unmount)
-  window.addEventListener('scroll', followScroll, { passive: true })
-  document.addEventListener('pointerdown', resetResidue, true)
+  window.addEventListener('scroll', onScroll, { passive: true })
+  window.addEventListener('resize', onResize)
+  window.addEventListener('pointerdown', () => {
+    pointerActive = true
+    resetResidue()
+    startSync(400)
+  })
+  window.addEventListener('pointerup', () => {
+    pointerActive = false
+    startSync(1200)
+  })
+  window.addEventListener('pointercancel', () => {
+    pointerActive = false
+    startSync(1200)
+  })
   document.addEventListener('sticker:sound', ((event: CustomEvent<{ on: boolean }>) => {
     board?.set({ sound: event.detail.on })
   }) as EventListener)
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', mount, { once: true })
+  } else {
+    mount()
+  }
 </script>
 
 <style is:global>
@@ -230,5 +464,40 @@
     inset: 0;
     z-index: 2;
     pointer-events: none;
+    will-change: transform;
+  }
+
+  .sticker-stage {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  /* A: the whole layer follows the scroll on the compositor. */
+  @supports (animation-timeline: scroll()) {
+    .holo-sticker-layer[data-active='follow'] {
+      animation: sticker-scroll linear both;
+      animation-timeline: scroll(root block);
+    }
+  }
+
+  @keyframes sticker-scroll {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+    to {
+      transform: translate3d(0, calc(-1 * var(--scroll-range, 0px)), 0);
+    }
+  }
+
+  .sticker-shield {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform-origin: 0 0;
+    z-index: 3;
+    pointer-events: none;
+    overflow: visible;
   }
 </style>

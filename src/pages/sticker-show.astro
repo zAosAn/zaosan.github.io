@@ -1,0 +1,73 @@
+---
+import IndexLayout from '@/layouts/IndexLayout.astro'
+import About from '@/components/widgets/About.astro'
+import Sticker from '@/components/widgets/Sticker.astro'
+---
+
+<IndexLayout title="Sticker show" description="三张贴纸的随机展示">
+  <About />
+  <Sticker count={3} follow="fixed" block={true} />
+  <button id="sticker-reroll" type="button">
+    [ReRoll]
+  </button>
+</IndexLayout>
+
+<script is:inline>
+  ;(() => {
+    const root = document.documentElement
+    root.classList.add('sticker-show')
+    document.addEventListener(
+      'astro:before-swap',
+      () => {
+        root.classList.remove('sticker-show')
+      },
+      { once: true }
+    )
+
+    const meta = document.querySelector('meta[name="viewport"]')
+    if (meta) {
+      meta.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no')
+    }
+
+    document.getElementById('sticker-reroll')?.addEventListener('click', () => {
+      location.reload()
+    })
+  })()
+</script>
+
+<style is:global>
+  html.sticker-show,
+  html.sticker-show body {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  html.sticker-show .page-content {
+    height: 100dvh;
+  }
+
+  #sticker-reroll {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 60;
+    padding: 0.4rem 0.75rem;
+    border: 0;
+    border-radius: 0.25rem;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-family: var(--mono);
+    font-size: var(--font-size-s);
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+  }
+
+  #sticker-reroll:hover,
+  #sticker-reroll:focus-visible {
+    background: rgba(0, 0, 0, 0.8);
+  }
+</style>

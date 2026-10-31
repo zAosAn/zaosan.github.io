@@ -403,8 +403,13 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
   // to that range's edge, the part outside is never rasterised. Shift the stage
   // and the sticker's own coordinates by the same amount: the sticker stays put
   // on screen, the canvas re-centres on it, and nothing stays clipped.
+  //
+  // The smudges live in the same stage, so a shift would move them abruptly.
+  // Fade them out first, then shift: they dissolve instead of jumping.
+  let pendingRecenter = 0
   const recenterCanvas = () => {
     if (!sticker || (driver !== 'a' && driver !== 'b')) return
+    if (pendingRecenter) return
     // The doubled canvas already gives room on both sides.
     if (layerEl()?.dataset.canvas === 'double') return
     const [width, height] = sticker.geo.size
@@ -427,14 +432,46 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
     if (stageY - halfY < margin) dy = stageY - halfY - margin
     else if (stageY + halfY > vh - margin) dy = stageY + halfY - (vh - margin)
     if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return
-    stageOffset.x += dx
-    stageOffset.y += dy
-    sticker.x -= dx
-    sticker.y += dy
-    const stage = stageEl()
-    if (stage) stage.style.transform = `translate3d(${stageOffset.x}px, ${stageOffset.y}px, 0)`
-    board?.kick()
-    placeShield()
+
+    const apply = () => {
+      pendingRecenter = 0
+      if (!sticker) return
+      stageOffset.x += dx
+      stageOffset.y += dy
+      sticker.x -= dx
+      sticker.y += dy
+      const stage = stageEl()
+      if (stage) stage.style.transform = `translate3d(${stageOffset.x}px, ${stageOffset.y}px, 0)`
+      board?.kick()
+      placeShield()
+    }
+
+    const canvases = residueCanvases()
+    const hasSmudges =
+      !residueHidden &&
+      canvases.some((canvas) => {
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return false
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+        for (let i = 3; i < data.length; i += 4) if (data[i] > 0) return true
+        return false
+      })
+
+    if (!hasSmudges) {
+      apply()
+      return
+    }
+
+    residueHidden = true
+    clearTimeout(residueTimer)
+    for (const canvas of canvases) {
+      canvas.style.transition = 'opacity 120ms ease-out'
+      canvas.style.opacity = '0'
+    }
+    residueTimer = window.setTimeout(() => {
+      residueExt?.clear()
+    }, 140)
+    pendingRecenter = window.setTimeout(apply, 150)
   }
 
   // Centre of the sticker anywhere in the viewport, but let it hang over an edge
@@ -527,6 +564,10 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
     sticker = null
     residueExt = null
     clearTimeout(residueTimer)
+    if (pendingRecenter) {
+      clearTimeout(pendingRecenter)
+      pendingRecenter = 0
+    }
     residueHidden = false
     if (syncRaf) cancelAnimationFrame(syncRaf)
     syncRaf = 0
@@ -643,7 +684,9 @@ const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: b
 
   /* A: the whole layer is moved by a scroll-driven animation, on the compositor. */
   @supports (animation-timeline: scroll()) {
-    .holo-sticker-layer[data-mode='a'] {
+    .holo-sticker-layer[data-mode='a'],
+    .holo-sticker-layer[data-mode='g'],
+    .holo-sticker-layer[data-mode='h'] {
       animation: sticker-scroll linear both;
       animation-timeline: scroll(root block);
     }

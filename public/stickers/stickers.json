@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "stickers": ["Character_Robin_Eidolon_4.png", "Seele_-_Herrscher_of_Rebirth_29.webp", "qx.gif"],
+  "params": {
+    "Character_Robin_Eidolon_4.png": {
+      "cut": 0.03,
+      "finish": "print",
+      "material": "rigid",
+      "width": 134,
+      "look": { "bands": 1.79, "dispersion": 0.51, "flake": 2.5 }
+    },
+    "Seele_-_Herrscher_of_Rebirth_29.webp": {
+      "cut": 0.036,
+      "finish": "clear",
+      "material": "rigid",
+      "width": 170,
+      "look": { "bands": 1.22, "dispersion": 0.74, "flake": 1.9 }
+    },
+    "qx.gif": {
+      "cut": 0.045,
+      "finish": "chrome",
+      "material": "vinyl",
+      "width": 132,
+      "look": { "bands": 0.91, "dispersion": 0.58, "flake": 2.2 }
+    }
+  }
+}

@@ -1,0 +1,528 @@
+---
+// Sticker lab: same engine and parameters as the site, with three different
+// scroll-follow drivers and an optional click/hover shield, so the behaviour can
+// be compared on a real phone. This component is temporary: once a driver is
+// chosen it gets folded back into Sticker.astro and this file is removed.
+import fs from 'node:fs'
+import path from 'node:path'
+
+interface StickerParams {
+  cut: number
+  finish: string
+  material: string
+  width: number
+  look: Record<string, number>
+}
+
+interface Manifest {
+  version: number
+  stickers: string[]
+  params: Record<string, StickerParams>
+}
+
+const manifestPath = path.join(process.cwd(), 'public', 'stickers', 'stickers.json')
+const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Manifest
+
+const specs = manifest.stickers.map((file) => ({
+  id: file.replace(/\.[^.]+$/, ''),
+  src: `/stickers/${encodeURIComponent(file)}`,
+  ...(manifest.params[file] ?? {})
+}))
+
+const { mode = 'a', shield = true } = Astro.props as { mode?: string; shield?: boolean }
+---
+
+<div id="holo-sticker-layer" class="holo-sticker-layer" data-mode={mode} data-shield={shield ? 'true' : 'false'}>
+  <div class="sticker-stage"></div>
+</div>
+
+<aside class="sticker-hud" aria-hidden="true">
+  <b class="hud-mode">{mode.toUpperCase()}</b>
+  <span class="hud-driver">初始化…</span>
+  <span class="hud-scroll">scrollY 0</span>
+</aside>
+
+<script type="application/json" id="sticker-specs" set:html={JSON.stringify(specs)}></script>
+
+<script>
+  type StickerSpec = {
+    id: string
+    src: string
+    cut: number
+    finish: string
+    material: string
+    width: number
+    look: Record<string, number>
+  }
+
+  type Geo = {
+    size: [number, number]
+    hit: (x: number, y: number) => boolean
+  }
+
+  type Sticker = {
+    x: number
+    y: number
+    rot: number
+    mode: string
+    geo: Geo
+  }
+
+  type Board = {
+    stickers: Sticker[]
+    stage: { toWorld: (x: number, y: number, z?: number) => [number, number] }
+    use: (extension: unknown) => unknown
+    set: (options: { sound?: boolean }) => void
+    kick: () => void
+    destroy: () => void
+  }
+
+  type Driver = 'a' | 'b' | 'c' | 'd'
+
+  const LAYER_ID = 'holo-sticker-layer'
+  const SOUND_KEY = 'chiri-sticker-sound'
+  const RESIDUE_FADE_MS = 300
+  const SVG_NS = 'http://www.w3.org/2000/svg'
+
+  let board: Board | null = null
+  let sticker: Sticker | null = null
+  let shield: SVGSVGElement | null = null
+  let residueExt: { clear: () => void } | null = null
+  let mounting = false
+  let driver: Driver = 'a'
+  let anchorScroll = 0
+  let lastScroll = 0
+  let residueTimer = 0
+  let residueHidden = false
+  let transformRaf = 0
+  let syncRaf = 0
+  let syncUntil = 0
+  let pointerActive = false
+
+  const hud = {
+    mode: document.querySelector('.hud-mode'),
+    driver: document.querySelector('.hud-driver'),
+    scroll: document.querySelector('.hud-scroll')
+  }
+
+  const readSound = () => {
+    try {
+      return localStorage.getItem(SOUND_KEY) !== 'off'
+    } catch {
+      return true
+    }
+  }
+
+  const readSpecs = (): StickerSpec[] => {
+    const node = document.getElementById('sticker-specs')
+    if (!node?.textContent) return []
+    try {
+      return JSON.parse(node.textContent) as StickerSpec[]
+    } catch {
+      return []
+    }
+  }
+
+  // Same mobile factors as the plan: the sticker gets smaller, but not as
+  // small as the first draft.
+  const scaledWidth = (width: number) => {
+    const vw = innerWidth
+    const scale = vw < 480 ? 0.62 : vw < 768 ? 0.75 : vw < 1024 ? 0.88 : 1
+    return Math.round(width * scale)
+  }
+
+  const layerEl = () => document.getElementById(LAYER_ID)
+  const stageEl = () => layerEl()?.querySelector('.sticker-stage') as HTMLElement | null
+
+  const residueCanvases = () =>
+    Array.from(document.querySelectorAll<HTMLCanvasElement>('.hs-under.hs-residue, .hs-under.hs-crumbs'))
+
+  const fadeResidue = () => {
+    const canvases = residueCanvases()
+    if (residueHidden || canvases.length === 0) return
+    residueHidden = true
+    clearTimeout(residueTimer)
+    for (const canvas of canvases) {
+      canvas.style.transition = `opacity ${RESIDUE_FADE_MS}ms ease-out`
+      canvas.style.opacity = '0'
+    }
+    residueTimer = window.setTimeout(() => {
+      residueExt?.clear()
+    }, RESIDUE_FADE_MS + 20)
+  }
+
+  const resetResidue = () => {
+    if (!residueHidden) return
+    residueHidden = false
+    clearTimeout(residueTimer)
+    residueExt?.clear()
+    for (const canvas of residueCanvases()) {
+      canvas.style.transition = 'none'
+      canvas.style.opacity = '1'
+    }
+  }
+
+  const placeShield = () => {
+    if (!shield || !sticker) return
+    const [width, height] = sticker.geo.size
+    shield.style.transform = `translate3d(${sticker.x}px, ${-sticker.y}px, 0) rotate(${-sticker.rot}deg) translate(${-width / 2}px, ${-height / 2}px)`
+  }
+
+  const syncShield = () => {
+    if (!shield || !sticker) return
+    const stuck = sticker.mode === 'stuck'
+    shield.style.display = stuck ? '' : 'none'
+    placeShield()
+  }
+
+  const tickSync = () => {
+    syncRaf = 0
+    syncShield()
+    if (pointerActive || performance.now() < syncUntil) syncRaf = requestAnimationFrame(tickSync)
+  }
+
+  const startSync = (ms = 900) => {
+    syncUntil = Math.max(syncUntil, performance.now() + ms)
+    if (!syncRaf) syncRaf = requestAnimationFrame(tickSync)
+  }
+
+  // The engine exposes the cut shape only through geo.hit, so the shield is
+  // rasterised from it: one path of stacked row runs per two pixels.
+  const silhouettePath = () => {
+    const geo = sticker?.geo
+    if (!geo) return ''
+    const [width, height] = geo.size
+    const step = 2
+    const rows = Math.ceil(height / step)
+    const cols = Math.ceil(width / step)
+    const parts: string[] = []
+    for (let row = 0; row < rows; row++) {
+      const top = height / 2 - row * step
+      const y = top - step / 2
+      let run = -1
+      for (let col = 0; col <= cols; col++) {
+        const inside = col < cols && geo.hit(-width / 2 + col * step + step / 2, y)
+        if (inside && run < 0) {
+          run = col
+        } else if (!inside && run >= 0) {
+          const x0 = width / 2 + (-width / 2 + run * step)
+          const x1 = width / 2 + (-width / 2 + col * step)
+          const y0 = height / 2 - top
+          parts.push(`M${x0.toFixed(1)} ${y0.toFixed(1)}H${x1.toFixed(1)}V${(y0 + step).toFixed(1)}H${x0.toFixed(1)}Z`)
+          run = -1
+        }
+      }
+    }
+    return parts.join('')
+  }
+
+  const buildShield = () => {
+    const stage = stageEl()
+    if (!stage || !sticker) return
+    const [width, height] = sticker.geo.size
+    const svg = document.createElementNS(SVG_NS, 'svg')
+    svg.setAttribute('class', 'sticker-shield')
+    svg.setAttribute('aria-hidden', 'true')
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`)
+    svg.style.width = `${width}px`
+    svg.style.height = `${height}px`
+    const shape = document.createElementNS(SVG_NS, 'path')
+    shape.setAttribute('d', silhouettePath())
+    shape.setAttribute('fill', 'rgba(0, 0, 0, 0)')
+    shape.setAttribute('pointer-events', 'all')
+    svg.appendChild(shape)
+    stage.appendChild(svg)
+    shield = svg
+  }
+
+  const applyLayerTransform = () => {
+    const layer = layerEl()
+    if (!layer || driver !== 'b') return
+    layer.style.transform = `translate3d(0, ${-window.scrollY}px, 0)`
+  }
+
+  const scheduleTransform = () => {
+    if (transformRaf) return
+    transformRaf = requestAnimationFrame(() => {
+      transformRaf = 0
+      applyLayerTransform()
+    })
+  }
+
+  const updateRange = () => {
+    const layer = layerEl()
+    if (!layer) return
+    const range = Math.max(0, document.documentElement.scrollHeight - innerHeight)
+    layer.style.setProperty('--scroll-range', `${range}px`)
+  }
+
+  const supportsScrollTimeline = () => {
+    try {
+      return CSS.supports('animation-timeline: scroll()') || CSS.supports('animation-timeline', 'scroll(root block)')
+    } catch {
+      return false
+    }
+  }
+
+  const setupDriver = () => {
+    const layer = layerEl()
+    const stage = stageEl()
+    if (!layer || !stage) return
+    const requested = (layer.dataset.mode || 'a') as Driver
+    driver = requested
+
+    if (driver === 'a' && !supportsScrollTimeline()) {
+      driver = 'b'
+      layer.dataset.mode = 'b'
+      if (hud.driver) hud.driver.textContent = '不支持滚动动画 → 回退 B'
+    } else if (hud.driver) {
+      hud.driver.textContent =
+        driver === 'a'
+          ? 'CSS 滚动驱动动画'
+          : driver === 'b'
+            ? 'rAF + transform'
+            : driver === 'c'
+              ? '现行 scroll 事件'
+              : '现行 scroll（无遮挡层）'
+    }
+
+    if (driver === 'a' || driver === 'b') {
+      stage.style.transform = `translate3d(0, ${anchorScroll}px, 0)`
+      updateRange()
+      if (driver === 'b') applyLayerTransform()
+    } else {
+      stage.style.transform = 'none'
+      layer.style.transform = 'none'
+    }
+  }
+
+  // The layer is moved with a compositor transform, so the engine's pointer
+  // maths (which assumes a viewport-fixed stage) needs the scroll offset back.
+  const patchStage = (instance: Board) => {
+    if (driver !== 'a' && driver !== 'b') return
+    const stage = instance.stage
+    const nativeToWorld = stage.toWorld.bind(stage)
+    stage.toWorld = (x: number, y: number, z = 0) => nativeToWorld(x, y + (window.scrollY - anchorScroll), z)
+  }
+
+  // Centre of the sticker anywhere in the viewport, but let it hang over an edge
+  // by at most 15% of its size or 24px, whichever is smaller.
+  const placeSticker = () => {
+    if (!sticker) return
+    const [width, height] = sticker.geo.size
+    const overflow = Math.min(Math.min(width, height) * 0.15, 24)
+    const minX = width / 2 - overflow
+    const maxX = innerWidth - width / 2 + overflow
+    const minY = height / 2 - overflow
+    const maxY = innerHeight - height / 2 + overflow
+    const x = maxX > minX ? minX + Math.random() * (maxX - minX) : innerWidth / 2
+    const y = maxY > minY ? minY + Math.random() * (maxY - minY) : innerHeight / 2
+    sticker.x = x - innerWidth / 2
+    sticker.y = innerHeight / 2 - y
+  }
+
+  const mount = async () => {
+    if (mounting || board) return
+    const layer = layerEl()
+    const stage = stageEl()
+    if (!layer || !stage) return
+    const specs = readSpecs()
+    if (specs.length === 0) return
+
+    mounting = true
+    try {
+      anchorScroll = window.scrollY
+      lastScroll = anchorScroll
+      setupDriver()
+
+      const engineUrl = '/vendor/holo-stickers-1.0.0.min.js'
+      const extrasUrl = '/vendor/holo-stickers-extras-1.0.0.min.js'
+      const engine = await import(/* @vite-ignore */ engineUrl)
+      const extras = await import(/* @vite-ignore */ extrasUrl)
+
+      if (!layer.isConnected || !stage.isConnected) return
+
+      const spec = specs[Math.floor(Math.random() * specs.length)]
+      const rotation = Math.round((Math.random() * 2 - 1) * 45)
+      const instance: Board = await engine.createStickers({
+        container: stage,
+        stickers: [
+          {
+            ...spec,
+            width: scaledWidth(spec.width),
+            rotation,
+            at: [0, 0]
+          }
+        ],
+        sound: false
+      })
+
+      if (!layer.isConnected || !stage.isConnected) {
+        instance.destroy()
+        return
+      }
+
+      board = instance
+      sticker = instance.stickers[0] ?? null
+      residueExt = instance.use(extras.residue()) as { clear: () => void }
+      instance.use(extras.bubbles())
+      patchStage(instance)
+
+      if (sticker) {
+        placeSticker()
+        instance.kick()
+        if (layer.dataset.shield === 'true') buildShield()
+        syncShield()
+        startSync(1800)
+      }
+
+      const enableSound = () => {
+        window.removeEventListener('pointerdown', enableSound, true)
+        if (board === instance && readSound()) instance.set({ sound: true })
+      }
+      window.addEventListener('pointerdown', enableSound, true)
+    } finally {
+      mounting = false
+    }
+  }
+
+  const unmount = () => {
+    const instance = board
+    board = null
+    sticker = null
+    residueExt = null
+    clearTimeout(residueTimer)
+    residueHidden = false
+    if (syncRaf) cancelAnimationFrame(syncRaf)
+    syncRaf = 0
+    if (shield) {
+      shield.remove()
+      shield = null
+    }
+    if (!instance) return
+    instance.set({ sound: false })
+    const sound = (instance as unknown as { sound?: { idle?: number } }).sound
+    if (sound?.idle) clearTimeout(sound.idle)
+    instance.destroy()
+  }
+
+  const onScroll = () => {
+    const y = window.scrollY
+    const delta = y - lastScroll
+    lastScroll = y
+    if (hud.scroll) hud.scroll.textContent = `scrollY ${Math.round(y)}`
+    fadeResidue()
+
+    if (!board || !sticker) return
+    if (driver === 'b') {
+      scheduleTransform()
+      return
+    }
+    if (driver === 'a') return
+
+    if (delta === 0) return
+    sticker.y += delta
+    board.kick()
+    placeShield()
+  }
+
+  const onResize = () => {
+    updateRange()
+    if (driver === 'b') applyLayerTransform()
+    startSync(600)
+  }
+
+  document.addEventListener('astro:page-load', mount)
+  document.addEventListener('astro:before-swap', unmount)
+  window.addEventListener('scroll', onScroll, { passive: true })
+  window.addEventListener('resize', onResize)
+  window.addEventListener('pointerdown', () => {
+    pointerActive = true
+    resetResidue()
+    startSync(400)
+  })
+  window.addEventListener('pointerup', () => {
+    pointerActive = false
+    startSync(1200)
+  })
+  window.addEventListener('pointercancel', () => {
+    pointerActive = false
+    startSync(1200)
+  })
+  document.addEventListener('sticker:sound', ((event: CustomEvent<{ on: boolean }>) => {
+    board?.set({ sound: event.detail.on })
+  }) as EventListener)
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', mount, { once: true })
+  } else {
+    mount()
+  }
+</script>
+
+<style is:global>
+  .holo-sticker-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  .sticker-stage {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  /* A: the whole layer is moved by a scroll-driven animation, on the compositor. */
+  @supports (animation-timeline: scroll()) {
+    .holo-sticker-layer[data-mode='a'] {
+      animation: sticker-scroll linear both;
+      animation-timeline: scroll(root block);
+    }
+  }
+
+  @keyframes sticker-scroll {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+    to {
+      transform: translate3d(0, calc(-1 * var(--scroll-range, 0px)), 0);
+    }
+  }
+
+  .sticker-shield {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform-origin: 0 0;
+    z-index: 3;
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  .sticker-hud {
+    position: fixed;
+    right: 0.75rem;
+    top: 0.75rem;
+    z-index: 40;
+    display: flex;
+    gap: 0.5rem;
+    align-items: baseline;
+    padding: 0.35rem 0.5rem;
+    border-radius: 0.25rem;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.02em;
+    pointer-events: none;
+    opacity: 0.9;
+  }
+
+  .sticker-hud b {
+    font-weight: 600;
+  }
+</style>

@@ -1,13 +1,16 @@
 ---
 // Peelable holographic stickers.
 //
-// A = CSS scroll-driven animation: the sticker is anchored in the document and
-//     the rendering layer is translated by the compositor. The click/hover shield
-//     follows the cut shape, and the canvas is re-centred vertically on every
-//     scroll so a sticker dragged to an edge is never permanently clipped.
-// E = the txt behaviour: the sticker stays in the viewport, nothing scrolls it,
-//     and nothing is blocked. Used when the browser is Safari or lacks scroll
-//     timelines.
+// The layer is not an overlay on the viewport: it is an absolutely positioned,
+// one-viewport-tall box inside the document, so the browser's own scrolling
+// carries the stickers (and their smudges) with the page. Nothing runs on
+// scroll, there is no scroll-driven animation to fall back from, and Safari
+// takes the same path as everything else.
+//
+// Dropping a sticker re-anchors that box: the layer's `top` and the sticker's
+// own coordinates move together in the same frame, so the sticker does not
+// budge on screen while the drawing area re-centres on it. That is what stops a
+// sticker dragged to an edge from being clipped for good.
 //
 // Parameters come from public/stickers/stickers.json, next to the images.
 import fs from 'node:fs'
@@ -37,18 +40,16 @@ const specs = manifest.stickers.map((file) => ({
 
 interface Props {
   count?: number
-  follow?: 'auto' | 'fixed'
   block?: boolean
 }
 
-const { count = 1, follow = 'auto', block } = Astro.props as Props
+const { count = 1, block } = Astro.props as Props
 ---
 
 <div
   id="holo-sticker-layer"
   class="holo-sticker-layer"
   data-count={count}
-  data-follow={follow}
   data-block={block === undefined ? 'auto' : String(block)}
 >
   <div class="sticker-stage"></div>
@@ -99,10 +100,11 @@ const { count = 1, follow = 'auto', block } = Astro.props as Props
   let shields: { sticker: Sticker; svg: SVGSVGElement }[] = []
   let residueExt: { clear: () => void } | null = null
   let mounting = false
-  let followActive = false
   let blockActive = false
+  // Where the layer's top sits in the document, and where the layer would sit
+  // with `top: 0`; the two differ by whatever the page wrapper adds above it.
   let anchorScroll = 0
-  let lastScroll = 0
+  let layerBase = 0
   let residueTimer = 0
   let residueHidden = false
   let syncRaf = 0
@@ -134,22 +136,6 @@ const { count = 1, follow = 'auto', block } = Astro.props as Props
     const vw = innerWidth
     const scale = vw < 480 ? 0.62 : vw < 768 ? 0.75 : vw < 1024 ? 0.88 : 1
     return Math.round(width * scale)
-  }
-
-  // Safari (desktop and iOS) and anything without scroll-driven animations use
-  // the txt behaviour instead: fixed in the viewport, no blocking.
-  const isSafari = () => {
-    const ua = navigator.userAgent
-    const safari = /Safari\//.test(ua) && !/(Chrome|Chromium|CriOS|FxiOS|EdgiOS|OPiOS|Android)/.test(ua)
-    return safari
-  }
-
-  const supportsScrollTimeline = () => {
-    try {
-      return CSS.supports('animation-timeline: scroll()') || CSS.supports('animation-timeline', 'scroll(root block)')
-    } catch {
-      return false
-    }
   }
 
   const residueCanvases = () =>
@@ -269,16 +255,19 @@ const { count = 1, follow = 'auto', block } = Astro.props as Props
     return { x, y }
   }
 
-  const applyStageOffset = () => {
-    const stage = stageEl()
-    if (stage) stage.style.transform = `translate3d(0, ${anchorScroll}px, 0)`
+  const applyLayerAnchor = () => {
+    const layer = layerEl()
+    if (layer) layer.style.top = `${anchorScroll - layerBase}px`
   }
 
-  const updateRange = () => {
-    const layer = layerEl()
-    if (!layer) return
-    const root = document.documentElement
-    layer.style.setProperty('--scroll-range', `${Math.max(0, root.scrollHeight - root.clientHeight)}px`)
+  // The sticker's own axis can push the box past the end of a short page, which
+  // would add scrollable blank space under the footer; take up the difference in
+  // the sticker's coordinates instead, so it still does not move on screen.
+  const anchoredShift = (shift: number) => {
+    const max = Math.max(0, document.body.getBoundingClientRect().height - innerHeight)
+    const next = anchorScroll - shift
+    if (next <= max) return { anchor: next, rest: 0 }
+    return { anchor: max, rest: next - max }
   }
 
   const mount = async () => {
@@ -291,18 +280,16 @@ const { count = 1, follow = 'auto', block } = Astro.props as Props
 
     mounting = true
     try {
-      const requested = layer.dataset.follow === 'fixed' ? false : true
-      followActive = requested && !isSafari() && supportsScrollTimeline()
-      const blockSetting = layer.dataset.block
-      blockActive = blockSetting === 'auto' ? followActive : blockSetting === 'true'
+      blockActive = layer.dataset.block !== 'false'
 
-      if (followActive) {
-        layer.dataset.active = 'follow'
-        anchorScroll = window.scrollY
-        lastScroll = anchorScroll
-        applyStageOffset()
-        updateRange()
-      }
+      // The layer is a box in the document, so it only covers the viewport it
+      // was anchored to; line that up with where the reader already is. It sits
+      // at the top level so the page's column width cannot crop it.
+      if (layer.parentElement !== document.body) document.body.appendChild(layer)
+      layer.style.top = '0px'
+      layerBase = layer.getBoundingClientRect().top + window.scrollY
+      anchorScroll = window.scrollY
+      applyLayerAnchor()
 
       const engineUrl = '/vendor/holo-stickers-1.0.0.min.js'
       const extrasUrl = '/vendor/holo-stickers-extras-1.0.0.min.js'
@@ -341,10 +328,10 @@ const { count = 1, follow = 'auto', block } = Astro.props as Props
       residueExt = instance.use(extras.residue()) as { clear: () => void }
       instance.use(extras.bubbles())
 
-      if (followActive) {
-        const native = instance.stage.toWorld.bind(instance.stage)
-        instance.stage.toWorld = (x: number, y: number, z = 0) => native(x, y - anchorScroll + window.scrollY, z)
-      }
+      // The engine works in viewport coordinates; the layer is laid out in the
+      // document, so point it at the box's own position in the page.
+      const native = instance.stage.toWorld.bind(instance.stage)
+      instance.stage.toWorld = (x: number, y: number, z = 0) => native(x, y + window.scrollY - anchorScroll, z)
 
       for (const sticker of stickers) {
         const [width, height] = sticker.geo.size
@@ -391,27 +378,29 @@ const { count = 1, follow = 'auto', block } = Astro.props as Props
     instance.destroy()
   }
 
-  // Re-centre vertically: shift the stage and the sticker's own coordinates
-  // together. The sticker stays put on screen while the drawable canvas follows
-  // it, so a sticker dragged to an edge is never clipped for good.
+  // Re-centre vertically: move the layer's anchor and the sticker's own
+  // coordinates together, in the same frame. The sticker stays put on screen
+  // while the drawable box re-centres on it, so a sticker dragged to an edge is
+  // never clipped for good.
   let pendingShift = 0
   let lastMode = ''
   const applyVerticalShift = () => {
-    if (!followActive || stickers.length !== 1) return
+    if (stickers.length !== 1) return
     const sticker = stickers[0]
     const shift = sticker.y
     if (shift === 0) return
-    anchorScroll -= shift
-    sticker.y = 0
-    applyStageOffset()
+    const { anchor, rest } = anchoredShift(shift)
+    anchorScroll = anchor
+    sticker.y = rest
+    applyLayerAnchor()
     board?.kick()
     for (const entry of shields) placeShield(entry)
   }
 
   // The shift moves the smudges too, so fade them out first and only then move
-  // the canvas; otherwise they jump.
+  // the layer; otherwise they jump.
   const scheduleVerticalShift = () => {
-    if (!followActive || stickers.length !== 1 || pendingShift) return
+    if (stickers.length !== 1 || pendingShift) return
     const canvases = residueCanvases()
     const hasSmudges =
       !residueHidden &&
@@ -443,23 +432,21 @@ const { count = 1, follow = 'auto', block } = Astro.props as Props
 
   // Re-centre as soon as the sticker is put back down, not on scroll.
   const recenterAfterSettle = () => {
-    if (!followActive || stickers.length !== 1) return
+    if (stickers.length !== 1) return
     const sticker = stickers[0]
     if (sticker.mode === 'stuck' && lastMode !== 'stuck') scheduleVerticalShift()
     lastMode = sticker.mode
   }
 
-  // A: the layer is driven by a scroll animation, so the JS only has to keep the
-  // smudges tidy.
+  // Scrolling itself is the browser's job now; the only thing left to watch for
+  // is the smudges, which fade away once the page moves. The guard comes first
+  // so a scroll that has nothing to fade costs a single boolean test.
   const onScroll = () => {
-    if (!followActive) return
-    lastScroll = window.scrollY
+    if (residueHidden) return
     fadeResidue()
   }
 
   const onResize = () => {
-    if (!followActive) return
-    updateRange()
     startSync(400)
   }
 
@@ -492,40 +479,39 @@ const { count = 1, follow = 'auto', block } = Astro.props as Props
 </script>
 
 <style is:global>
+  /* A box in the document, not an overlay on the viewport: scrolling it is the
+     browser's own work, so there is nothing to keep in sync. */
   .holo-sticker-layer {
-    position: fixed;
-    inset: 0;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
     z-index: 2;
     pointer-events: none;
-    will-change: transform;
   }
 
   .sticker-stage {
-    position: fixed;
+    position: absolute;
     inset: 0;
     pointer-events: none;
-    will-change: transform;
   }
 
-  /* A: the whole layer follows the scroll on the compositor. */
-  @supports (animation-timeline: scroll()) {
-    .holo-sticker-layer[data-active='follow'] {
-      animation: sticker-scroll linear both;
-      animation-timeline: scroll(root block);
-    }
+  /* The engine lays its own layers over the viewport by default; inside this
+     box they have to move with it, or the smudges would stay behind. */
+  .holo-sticker-layer .hs-canvas,
+  .holo-sticker-layer .hs-dom,
+  .holo-sticker-layer .hs-under {
+    position: absolute;
   }
 
-  @keyframes sticker-scroll {
-    from {
-      transform: translate3d(0, 0, 0);
-    }
-    to {
-      transform: translate3d(0, calc(-1 * var(--scroll-range, 0px)), 0);
-    }
+  .holo-sticker-layer .hs-ring {
+    position: absolute;
   }
 
   .sticker-shield {
-    position: fixed;
+    position: absolute;
     left: 50%;
     top: 50%;
     transform-origin: 0 0;

@@ -87,6 +87,7 @@ const { count = 1, block } = Astro.props as Props
     use: (extension: unknown) => unknown
     set: (options: { sound?: boolean }) => void
     kick: () => void
+    resize: () => void
     destroy: () => void
   }
 
@@ -97,7 +98,7 @@ const { count = 1, block } = Astro.props as Props
 
   let board: Board | null = null
   let stickers: Sticker[] = []
-  let shields: { sticker: Sticker; svg: SVGSVGElement }[] = []
+  let shields: { sticker: Sticker; svg: SVGSVGElement; size: [number, number] }[] = []
   let residueExt: { clear: () => void } | null = null
   let mounting = false
   let blockActive = false
@@ -105,6 +106,8 @@ const { count = 1, block } = Astro.props as Props
   // with `top: 0`; the two differ by whatever the page wrapper adds above it.
   let anchorScroll = 0
   let layerBase = 0
+  let lastWidth = 0
+  let lastModes: string[] = []
   let residueTimer = 0
   let residueHidden = false
   let syncRaf = 0
@@ -195,38 +198,64 @@ const { count = 1, block } = Astro.props as Props
     return parts.join('')
   }
 
-  const placeShield = (entry: { sticker: Sticker; svg: SVGSVGElement }) => {
+  type Shield = { sticker: Sticker; svg: SVGSVGElement; size: [number, number] }
+
+  const placeShield = (entry: Shield) => {
     const [width, height] = entry.sticker.geo.size
     entry.svg.style.transform = `translate3d(${entry.sticker.x}px, ${-entry.sticker.y}px, 0) rotate(${-entry.sticker
       .rot}deg) translate(${-width / 2}px, ${-height / 2}px)`
   }
 
-  const buildShields = () => {
+  const buildShield = (sticker: Sticker): Shield | null => {
     const stage = stageEl()
-    if (!stage) return
-    for (const sticker of stickers) {
-      const [width, height] = sticker.geo.size
-      const svg = document.createElementNS(SVG_NS, 'svg')
-      svg.setAttribute('class', 'sticker-shield')
-      svg.setAttribute('aria-hidden', 'true')
-      svg.setAttribute('viewBox', `0 0 ${width} ${height}`)
-      svg.style.width = `${width}px`
-      svg.style.height = `${height}px`
-      const shape = document.createElementNS(SVG_NS, 'path')
-      shape.setAttribute('d', shieldPath(sticker))
-      shape.setAttribute('fill', 'rgba(0, 0, 0, 0)')
-      shape.setAttribute('pointer-events', 'all')
-      svg.appendChild(shape)
-      stage.appendChild(svg)
-      const entry = { sticker, svg }
-      shields.push(entry)
-      placeShield(entry)
-    }
+    if (!stage) return null
+    const [width, height] = sticker.geo.size
+    const svg = document.createElementNS(SVG_NS, 'svg')
+    svg.setAttribute('class', 'sticker-shield')
+    svg.setAttribute('aria-hidden', 'true')
+    const shape = document.createElementNS(SVG_NS, 'path')
+    shape.setAttribute('fill', 'rgba(0, 0, 0, 0)')
+    shape.setAttribute('pointer-events', 'all')
+    svg.appendChild(shape)
+    stage.appendChild(svg)
+    const entry: Shield = { sticker, svg, size: [width, height] }
+    reshapeShield(entry)
+    return entry
+  }
+
+  // A torn sticker gets a new outline, and the piece torn off is a separate
+  // sticker; both need their own shield or the old one would keep blocking a
+  // shape that is no longer there.
+  const reshapeShield = (entry: Shield) => {
+    const [width, height] = entry.sticker.geo.size
+    const shape = entry.svg.firstChild as SVGPathElement
+    entry.svg.setAttribute('viewBox', `0 0 ${width} ${height}`)
+    entry.svg.style.width = `${width}px`
+    entry.svg.style.height = `${height}px`
+    shape.setAttribute('d', shieldPath(entry.sticker))
+    entry.size = [width, height]
+    placeShield(entry)
   }
 
   const syncShields = () => {
-    for (const entry of shields) {
-      const stuck = entry.sticker.mode === 'stuck'
+    const all = board?.stickers ?? []
+    for (let index = shields.length - 1; index >= 0; index--) {
+      if (!all.includes(shields[index].sticker)) {
+        shields[index].svg.remove()
+        shields.splice(index, 1)
+      }
+    }
+    for (const sticker of all) {
+      let entry = shields.find((candidate) => candidate.sticker === sticker)
+      if (!entry) {
+        const built = buildShield(sticker)
+        if (!built) continue
+        shields.push(built)
+        entry = built
+      } else if (entry.size[0] !== sticker.geo.size[0] || entry.size[1] !== sticker.geo.size[1]) {
+        reshapeShield(entry)
+      }
+      const stuck = sticker.mode === 'stuck'
       entry.svg.style.display = stuck ? '' : 'none'
       if (stuck) placeShield(entry)
     }
@@ -260,14 +289,15 @@ const { count = 1, block } = Astro.props as Props
     if (layer) layer.style.top = `${anchorScroll - layerBase}px`
   }
 
-  // The sticker's own axis can push the box past the end of a short page, which
-  // would add scrollable blank space under the footer; take up the difference in
-  // the sticker's coordinates instead, so it still does not move on screen.
-  const anchoredShift = (shift: number) => {
-    const max = Math.max(0, document.body.getBoundingClientRect().height - innerHeight)
-    const next = anchorScroll - shift
-    if (next <= max) return { anchor: next, rest: 0 }
-    return { anchor: max, rest: next - max }
+  // The engine sizes everything from `innerWidth`/`innerHeight`, and on a phone
+  // `innerHeight` changes whenever the toolbar slides in or out. Each of those
+  // resizes the drawing buffer and re-centres the sticker, which is the jump:
+  // freeze the box at the height it was mounted at, and only follow a change of
+  // width (rotation), which really does change the layout.
+  const pinLayerHeight = () => {
+    const layer = layerEl()
+    if (!layer) return
+    layer.style.height = `${Math.round(innerHeight)}px`
   }
 
   const mount = async () => {
@@ -287,9 +317,11 @@ const { count = 1, block } = Astro.props as Props
       // at the top level so the page's column width cannot crop it.
       if (layer.parentElement !== document.body) document.body.appendChild(layer)
       layer.style.top = '0px'
+      pinLayerHeight()
       layerBase = layer.getBoundingClientRect().top + window.scrollY
       anchorScroll = window.scrollY
       applyLayerAnchor()
+      lastWidth = innerWidth
 
       const engineUrl = '/vendor/holo-stickers-1.0.0.min.js'
       const extrasUrl = '/vendor/holo-stickers-extras-1.0.0.min.js'
@@ -324,7 +356,7 @@ const { count = 1, block } = Astro.props as Props
 
       board = instance
       stickers = instance.stickers.slice()
-      lastMode = ''
+      lastModes = []
       residueExt = instance.use(extras.residue()) as { clear: () => void }
       instance.use(extras.bubbles())
 
@@ -333,16 +365,29 @@ const { count = 1, block } = Astro.props as Props
       const native = instance.stage.toWorld.bind(instance.stage)
       instance.stage.toWorld = (x: number, y: number, z = 0) => native(x, y + window.scrollY - anchorScroll, z)
 
+      // A toolbar sliding is a resize with the same width, and it must not reach
+      // the engine: it would resize the buffer, re-centre the sticker and leave
+      // the click shield a few dozen pixels away from the artwork.
+      const resize = instance.resize.bind(instance)
+      instance.resize = () => {
+        if (innerWidth === lastWidth) return
+        lastWidth = innerWidth
+        pinLayerHeight()
+        resize()
+      }
+
+      // Convert from the box that actually got drawn, not from `innerWidth`.
+      const canvasEl = layer.querySelector('.hs-canvas') as HTMLElement | null
+      const box = (canvasEl ?? stage).getBoundingClientRect()
       for (const sticker of stickers) {
         const [width, height] = sticker.geo.size
         const target = randomPlacement(width, height)
-        sticker.x = target.x - innerWidth / 2
-        sticker.y = innerHeight / 2 - target.y
+        sticker.x = target.x - box.left - box.width / 2
+        sticker.y = box.height / 2 - (target.y - box.top)
       }
       instance.kick()
 
-      if (blockActive) buildShields()
-      syncShields()
+      if (blockActive) syncShields()
       startSync(1800)
 
       const enableSound = () => {
@@ -359,7 +404,7 @@ const { count = 1, block } = Astro.props as Props
     const instance = board
     board = null
     stickers = []
-    lastMode = ''
+    lastModes = []
     residueExt = null
     clearTimeout(residueTimer)
     if (pendingShift) {
@@ -378,20 +423,40 @@ const { count = 1, block } = Astro.props as Props
     instance.destroy()
   }
 
-  // Re-centre vertically: move the layer's anchor and the sticker's own
-  // coordinates together, in the same frame. The sticker stays put on screen
-  // while the drawable box re-centres on it, so a sticker dragged to an edge is
-  // never clipped for good.
+  // Put the box back around the sticker with the smallest move that keeps it
+  // clear of the box's own edges: no clipping, and the box stays level with the
+  // viewport, so the sticker never ends up in a part of the window it cannot be
+  // reached from. Never push the box past the end of the page either.
+  const recentreAnchor = (all: Sticker[], height: number) => {
+    const max = Math.max(0, document.body.getBoundingClientRect().height - height)
+    let lower = 0
+    let upper = Number.POSITIVE_INFINITY
+    let middle = 0
+    for (const sticker of all) {
+      const halfHeight = sticker.geo.size[1] / 2 + 10
+      const docY = anchorScroll + height / 2 - sticker.y
+      middle += docY / all.length
+      lower = Math.max(lower, docY + halfHeight - height)
+      upper = Math.min(upper, docY - halfHeight)
+    }
+    if (lower > upper) return Math.max(0, Math.min(max, middle - height / 2))
+    return Math.min(Math.max(window.scrollY, lower), Math.min(upper, max))
+  }
+
+  // Move the anchor and every sticker's own coordinates together, in the same
+  // frame, so nothing budges on screen. A torn sticker is two stickers, and
+  // moving only one of them is what made the other piece jump.
   let pendingShift = 0
-  let lastMode = ''
   const applyVerticalShift = () => {
-    if (stickers.length !== 1) return
-    const sticker = stickers[0]
-    const shift = sticker.y
-    if (shift === 0) return
-    const { anchor, rest } = anchoredShift(shift)
+    const all = board?.stickers ?? []
+    const layer = layerEl()
+    if (all.length === 0 || !layer) return
+    const height = layer.getBoundingClientRect().height || innerHeight
+    const anchor = recentreAnchor(all, height)
+    const delta = anchor - anchorScroll
+    if (delta === 0) return
     anchorScroll = anchor
-    sticker.y = rest
+    for (const sticker of all) sticker.y += delta
     applyLayerAnchor()
     board?.kick()
     for (const entry of shields) placeShield(entry)
@@ -400,7 +465,7 @@ const { count = 1, block } = Astro.props as Props
   // The shift moves the smudges too, so fade them out first and only then move
   // the layer; otherwise they jump.
   const scheduleVerticalShift = () => {
-    if (stickers.length !== 1 || pendingShift) return
+    if (!board?.stickers.length || pendingShift) return
     const canvases = residueCanvases()
     const hasSmudges =
       !residueHidden &&
@@ -430,12 +495,18 @@ const { count = 1, block } = Astro.props as Props
     }, 150)
   }
 
-  // Re-centre as soon as the sticker is put back down, not on scroll.
+  // Re-centre as soon as any sticker is put back down, not on scroll. Pieces torn
+  // off are separate stickers, so this watches the whole board, not just the one
+  // that was on it at load.
   const recenterAfterSettle = () => {
-    if (stickers.length !== 1) return
-    const sticker = stickers[0]
-    if (sticker.mode === 'stuck' && lastMode !== 'stuck') scheduleVerticalShift()
-    lastMode = sticker.mode
+    const all = board?.stickers ?? []
+    if (all.length === 0) return
+    const settled = all.some((sticker, index) => {
+      const before = lastModes[index]
+      return sticker.mode === 'stuck' && before !== undefined && before !== 'stuck'
+    })
+    lastModes = all.map((sticker) => sticker.mode)
+    if (settled) scheduleVerticalShift()
   }
 
   // Scrolling itself is the browser's job now; the only thing left to watch for
@@ -446,6 +517,8 @@ const { count = 1, block } = Astro.props as Props
     fadeResidue()
   }
 
+  // A height-only resize is a toolbar sliding, and the box stays where it is for
+  // it; the engine's own resize is filtered in `mount`.
   const onResize = () => {
     startSync(400)
   }
@@ -499,11 +572,16 @@ const { count = 1, block } = Astro.props as Props
   }
 
   /* The engine lays its own layers over the viewport by default; inside this
-     box they have to move with it, or the smudges would stay behind. */
+     box they have to move with it, or the smudges would stay behind. Their size
+     is pinned to the box too: the engine's own rule uses `100dvh`, which changes
+     whenever a mobile toolbar slides away, and that resize dragged the sticker
+     with it. */
   .holo-sticker-layer .hs-canvas,
   .holo-sticker-layer .hs-dom,
   .holo-sticker-layer .hs-under {
     position: absolute;
+    width: 100%;
+    height: 100%;
   }
 
   .holo-sticker-layer .hs-ring {

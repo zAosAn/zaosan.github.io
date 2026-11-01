@@ -58,6 +58,15 @@ const buildDate = new Intl.DateTimeFormat('en-CA', {
   </div>
 </IndexLayout>
 
+<script is:inline>
+  ;(() => {
+    // Read-only page: no dragging a selection across the archive.
+    const root = document.documentElement
+    root.classList.add('no-select')
+    document.addEventListener('astro:before-swap', () => root.classList.remove('no-select'), { once: true })
+  })()
+</script>
+
 <style>
   .archive {
     width: 100%;

@@ -19,7 +19,8 @@ import path from 'node:path'
 interface StickerParams {
   cut: number
   finish: string
-  material: string
+  // A preset name, or a preset plus overrides (`{ preset, memory, gloss, ... }`).
+  material: string | Record<string, number | string>
   width: number
   look: Record<string, number>
 }
@@ -41,16 +42,23 @@ const specs = manifest.stickers.map((file) => ({
 interface Props {
   count?: number
   block?: boolean
+  // 'fade' (default) lets the smudges dissolve once the page stops moving;
+  // 'keep' leaves every mark where it was made.
+  residue?: 'fade' | 'keep'
 }
 
-const { count = 1, block } = Astro.props as Props
+const { count = 1, block, residue = 'fade' } = Astro.props as Props
 ---
+
+<link rel="modulepreload" href="/vendor/holo-stickers-1.0.0.min.js" />
+<link rel="modulepreload" href="/vendor/holo-stickers-extras-1.0.0.min.js" />
 
 <div
   id="holo-sticker-layer"
   class="holo-sticker-layer"
   data-count={count}
   data-block={block === undefined ? 'auto' : String(block)}
+  data-residue={residue}
 >
   <div class="sticker-stage"></div>
 </div>
@@ -93,11 +101,13 @@ const { count = 1, block } = Astro.props as Props
 
   const LAYER_ID = 'holo-sticker-layer'
   const SOUND_KEY = 'chiri-sticker-sound'
-  const RESIDUE_FADE_MS = 300
+  // Smudges stay while the page is moving and only start to go a beat after it
+  // stops, then dissolve slowly enough to read as paper rather than a cut.
+  const RESIDUE_HOLD_MS = 900
+  const RESIDUE_FADE_MS = 1500
   const SVG_NS = 'http://www.w3.org/2000/svg'
 
   let board: Board | null = null
-  let stickers: Sticker[] = []
   let shields: { sticker: Sticker; svg: SVGSVGElement; size: [number, number] }[] = []
   let residueExt: { clear: () => void } | null = null
   let mounting = false
@@ -105,11 +115,14 @@ const { count = 1, block } = Astro.props as Props
   // Where the layer's top sits in the document, and where the layer would sit
   // with `top: 0`; the two differ by whatever the page wrapper adds above it.
   let anchorScroll = 0
-  let layerBase = 0
   let lastWidth = 0
   let lastModes: string[] = []
+  let lastPicked: string[] = []
+  let enableSound: (() => void) | null = null
   let residueTimer = 0
+  let residueHoldTimer = 0
   let residueHidden = false
+  let residueKeep = false
   let syncRaf = 0
   let syncUntil = 0
   let pointerActive = false
@@ -145,6 +158,7 @@ const { count = 1, block } = Astro.props as Props
     Array.from(document.querySelectorAll<HTMLCanvasElement>('.hs-under.hs-residue, .hs-under.hs-crumbs'))
 
   const fadeResidue = () => {
+    if (residueKeep) return
     const canvases = residueCanvases()
     if (residueHidden || canvases.length === 0) return
     residueHidden = true
@@ -286,7 +300,7 @@ const { count = 1, block } = Astro.props as Props
 
   const applyLayerAnchor = () => {
     const layer = layerEl()
-    if (layer) layer.style.top = `${anchorScroll - layerBase}px`
+    if (layer) layer.style.top = `${anchorScroll}px`
   }
 
   // The engine sizes everything from `innerWidth`/`innerHeight`, and on a phone
@@ -300,6 +314,49 @@ const { count = 1, block } = Astro.props as Props
     layer.style.height = `${Math.round(innerHeight)}px`
   }
 
+  // Both vendor bundles are fetched as soon as this module runs, in parallel with
+  // the rest of the page, instead of after the layout work below. The images for
+  // whichever stickers were drawn are warmed the same way, so the engine usually
+  // finds them in the cache by the time it asks.
+  const ENGINE_URL = '/vendor/holo-stickers-1.0.0.min.js'
+  const EXTRAS_URL = '/vendor/holo-stickers-extras-1.0.0.min.js'
+  const engineReady = import(/* @vite-ignore */ ENGINE_URL)
+  const extrasReady = import(/* @vite-ignore */ EXTRAS_URL)
+
+  let warmed: HTMLImageElement[] = []
+  const warmImages = (sources: string[]) => {
+    warmed = sources.map((src) => {
+      const image = new Image()
+      image.decoding = 'async'
+      image.src = src
+      return image
+    })
+  }
+
+  const shuffled = <T,>(items: T[]) => {
+    const pool = [...items]
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[pool[i], pool[j]] = [pool[j], pool[i]]
+    }
+    return pool
+  }
+
+  // A reroll should visibly reroll: keep shuffling until at least one sticker is
+  // one the reader was not already looking at.
+  const pick = (specs: StickerSpec[], count: number) => {
+    const size = Math.min(count, specs.length)
+    let pool = shuffled(specs)
+    let chosen = pool.slice(0, size)
+    for (let attempt = 0; attempt < 6 && lastPicked.length > 0; attempt++) {
+      if (chosen.some((spec) => !lastPicked.includes(spec.id))) break
+      pool = shuffled(specs)
+      chosen = pool.slice(0, size)
+    }
+    lastPicked = chosen.map((spec) => spec.id)
+    return chosen
+  }
+
   const mount = async () => {
     if (mounting || board) return
     const layer = layerEl()
@@ -311,6 +368,7 @@ const { count = 1, block } = Astro.props as Props
     mounting = true
     try {
       blockActive = layer.dataset.block !== 'false'
+      residueKeep = layer.dataset.residue === 'keep'
 
       // The layer is a box in the document, so it only covers the viewport it
       // was anchored to; line that up with where the reader already is. It sits
@@ -318,25 +376,17 @@ const { count = 1, block } = Astro.props as Props
       if (layer.parentElement !== document.body) document.body.appendChild(layer)
       layer.style.top = '0px'
       pinLayerHeight()
-      layerBase = layer.getBoundingClientRect().top + window.scrollY
       anchorScroll = window.scrollY
       applyLayerAnchor()
       lastWidth = innerWidth
 
-      const engineUrl = '/vendor/holo-stickers-1.0.0.min.js'
-      const extrasUrl = '/vendor/holo-stickers-extras-1.0.0.min.js'
-      const engine = await import(/* @vite-ignore */ engineUrl)
-      const extras = await import(/* @vite-ignore */ extrasUrl)
+      const count = Math.max(1, Number(layer.dataset.count) || 1)
+      const chosen = pick(specs, count)
+      warmImages(chosen.map((spec) => spec.src))
+
+      const [engine, extras] = await Promise.all([engineReady, extrasReady])
 
       if (!layer.isConnected || !stage.isConnected) return
-
-      const count = Math.max(1, Number(layer.dataset.count) || 1)
-      const pool = [...specs]
-      for (let i = pool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1))
-        ;[pool[i], pool[j]] = [pool[j], pool[i]]
-      }
-      const chosen = Array.from({ length: count }, (_, index) => pool[index % pool.length])
 
       const instance: Board = await engine.createStickers({
         container: stage,
@@ -355,7 +405,6 @@ const { count = 1, block } = Astro.props as Props
       }
 
       board = instance
-      stickers = instance.stickers.slice()
       lastModes = []
       residueExt = instance.use(extras.residue()) as { clear: () => void }
       instance.use(extras.bubbles())
@@ -379,7 +428,7 @@ const { count = 1, block } = Astro.props as Props
       // Convert from the box that actually got drawn, not from `innerWidth`.
       const canvasEl = layer.querySelector('.hs-canvas') as HTMLElement | null
       const box = (canvasEl ?? stage).getBoundingClientRect()
-      for (const sticker of stickers) {
+      for (const sticker of instance.stickers) {
         const [width, height] = sticker.geo.size
         const target = randomPlacement(width, height)
         sticker.x = target.x - box.left - box.width / 2
@@ -390,11 +439,13 @@ const { count = 1, block } = Astro.props as Props
       if (blockActive) syncShields()
       startSync(1800)
 
-      const enableSound = () => {
-        window.removeEventListener('pointerdown', enableSound, true)
+      const onFirstPointer = () => {
+        window.removeEventListener('pointerdown', onFirstPointer, true)
+        enableSound = null
         if (board === instance && readSound()) instance.set({ sound: true })
       }
-      window.addEventListener('pointerdown', enableSound, true)
+      enableSound = onFirstPointer
+      window.addEventListener('pointerdown', onFirstPointer, true)
     } finally {
       mounting = false
     }
@@ -403,10 +454,13 @@ const { count = 1, block } = Astro.props as Props
   const unmount = () => {
     const instance = board
     board = null
-    stickers = []
     lastModes = []
     residueExt = null
     clearTimeout(residueTimer)
+    clearTimeout(residueHoldTimer)
+    residueKeep = false
+    if (enableSound) window.removeEventListener('pointerdown', enableSound, true)
+    enableSound = null
     if (pendingShift) {
       clearTimeout(pendingShift)
       pendingShift = 0
@@ -443,29 +497,43 @@ const { count = 1, block } = Astro.props as Props
     return Math.min(Math.max(window.scrollY, lower), Math.min(upper, max))
   }
 
+  // Where the box would have to go, and how far that is from where it is.
+  const shiftPlan = () => {
+    const all = board?.stickers ?? []
+    const layer = layerEl()
+    if (all.length === 0 || !layer) return null
+    const height = layer.getBoundingClientRect().height || innerHeight
+    const anchor = recentreAnchor(all, height)
+    return { all, anchor, delta: anchor - anchorScroll }
+  }
+
   // Move the anchor and every sticker's own coordinates together, in the same
   // frame, so nothing budges on screen. A torn sticker is two stickers, and
   // moving only one of them is what made the other piece jump.
   let pendingShift = 0
   const applyVerticalShift = () => {
-    const all = board?.stickers ?? []
-    const layer = layerEl()
-    if (all.length === 0 || !layer) return
-    const height = layer.getBoundingClientRect().height || innerHeight
-    const anchor = recentreAnchor(all, height)
-    const delta = anchor - anchorScroll
-    if (delta === 0) return
-    anchorScroll = anchor
-    for (const sticker of all) sticker.y += delta
+    const plan = shiftPlan()
+    if (!plan || plan.delta === 0) return
+    anchorScroll = plan.anchor
+    for (const sticker of plan.all) sticker.y += plan.delta
     applyLayerAnchor()
     board?.kick()
     for (const entry of shields) placeShield(entry)
   }
 
   // The shift moves the smudges too, so fade them out first and only then move
-  // the layer; otherwise they jump.
+  // the layer; otherwise they jump. Where smudges are kept, they simply ride
+  // along with the box.
   const scheduleVerticalShift = () => {
     if (!board?.stickers.length || pendingShift) return
+    // Nothing to move means nothing to fade: the smudges are left alone unless
+    // the box really has to shift under them.
+    const plan = shiftPlan()
+    if (!plan || plan.delta === 0) return
+    if (residueKeep) {
+      applyVerticalShift()
+      return
+    }
     const canvases = residueCanvases()
     const hasSmudges =
       !residueHidden &&
@@ -510,11 +578,12 @@ const { count = 1, block } = Astro.props as Props
   }
 
   // Scrolling itself is the browser's job now; the only thing left to watch for
-  // is the smudges, which fade away once the page moves. The guard comes first
-  // so a scroll that has nothing to fade costs a single boolean test.
+  // is the smudges. They hold while the page is moving and only start to fade
+  // once it has been still for a moment; on the show page they are kept.
   const onScroll = () => {
-    if (residueHidden) return
-    fadeResidue()
+    if (residueKeep || residueHidden) return
+    clearTimeout(residueHoldTimer)
+    residueHoldTimer = window.setTimeout(fadeResidue, RESIDUE_HOLD_MS)
   }
 
   // A height-only resize is a toolbar sliding, and the box stays where it is for
@@ -527,6 +596,14 @@ const { count = 1, block } = Astro.props as Props
   document.addEventListener('astro:before-swap', unmount)
   window.addEventListener('scroll', onScroll, { passive: true })
   window.addEventListener('resize', onResize)
+  // Anyone can ask for a fresh draw; the show page's button does. Rebuilding the
+  // board in place is a lot cheaper than reloading the document, and it can
+  // guarantee that something actually changed.
+  document.addEventListener('sticker:reroll', () => {
+    if (!board || mounting) return
+    unmount()
+    void mount()
+  })
   window.addEventListener('pointerdown', () => {
     pointerActive = true
     resetResidue()

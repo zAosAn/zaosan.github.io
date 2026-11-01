@@ -282,6 +282,22 @@ html.dark::before {
   mix-blend-mode: screen;
 }
 
+/* Archive and showcase pages are there to be looked at, not selected: dragging
+   a selection across a list of links only ever leaves a highlight behind. Fields
+   keep their own selection so typing still behaves. */
+html.no-select,
+html.no-select body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html.no-select input,
+html.no-select textarea,
+html.no-select [contenteditable] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 @media print {
   html::before {
     display: none;

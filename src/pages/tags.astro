@@ -69,6 +69,11 @@ const totalTags = groups.length
       window.__tagsController.destroy()
     }
 
+    // Read-only page: no dragging a selection across the list.
+    const root = document.documentElement
+    root.classList.add('no-select')
+    document.addEventListener('astro:before-swap', () => root.classList.remove('no-select'), { once: true })
+
     function decodeHash() {
       const raw = window.location.hash.slice(1)
       if (!raw) return '*'

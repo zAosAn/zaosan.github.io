@@ -1,14 +1,15 @@
 {
   "version": 1,
   "stickers": [
-    "Character_Robin_Eidolon_4.png",
+    "Character_Robin_Eidolon_4.webp",
     "Seele_-_Herrscher_of_Rebirth_29.webp",
-    "deepseek-memecub.png",
-    "qx.gif",
-    "tfls.gif"
+    "deepseek-memecub.webp",
+    "qx.webp",
+    "tfls.webp",
+    "kawayiT.webp"
   ],
   "params": {
-    "Character_Robin_Eidolon_4.png": {
+    "Character_Robin_Eidolon_4.webp": {
       "cut": 0.03,
       "finish": "print",
       "material": "rigid",
@@ -22,26 +23,33 @@
       "width": 170,
       "look": { "bands": 1.22, "dispersion": 0.74, "flake": 1.9 }
     },
-    "deepseek-memecub.png": {
+    "deepseek-memecub.webp": {
       "cut": 0.046,
       "finish": "chrome",
       "material": "vinyl",
       "width": 140,
       "look": { "bands": 1.37, "dispersion": 0.37, "flake": 2.2 }
     },
-    "qx.gif": {
+    "qx.webp": {
       "cut": 0.045,
       "finish": "chrome",
       "material": "vinyl",
       "width": 132,
       "look": { "bands": 0.91, "dispersion": 0.58, "flake": 2.2 }
     },
-    "tfls.gif": {
+    "tfls.webp": {
       "cut": 0.065,
       "finish": "print",
       "material": "paper",
       "width": 132,
       "look": { "bands": 1.02, "dispersion": 0.3, "flake": 2.6 }
+    },
+    "kawayiT.webp": {
+      "cut": 0.074,
+      "finish": "glitter",
+      "material": { "preset": "vinyl", "memory": 10, "gloss": 0.83 },
+      "width": 140,
+      "look": { "bands": 1.45, "dispersion": 0.72, "flake": 2.4, "holo": 1, "response": 0.05, "ink": 0.42 }
     }
   }
 }

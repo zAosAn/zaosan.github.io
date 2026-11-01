@@ -10,17 +10,22 @@ import Sticker from '@/components/widgets/Sticker.astro'
     </button>
     <p>该页面尺寸已被锁定，作为展示页面</p>
   </div>
-  <Sticker count={3} block={true} />
+  <Sticker count={3} block={true} residue="keep" />
 </IndexLayout>
 
-<script is:inline>
+<script is:inline data-astro-rerun>
   ;(() => {
+    // `data-astro-rerun` matters: without it this never runs when the page is
+    // reached through a client-side navigation, which left the button dead and
+    // the page scrollable.
     const root = document.documentElement
     root.classList.add('sticker-show')
     document.addEventListener(
       'astro:before-swap',
       () => {
         root.classList.remove('sticker-show')
+        const meta = document.querySelector('meta[name="viewport"]')
+        if (meta) meta.setAttribute('content', 'width=device-width, initial-scale=1')
       },
       { once: true }
     )
@@ -30,9 +35,22 @@ import Sticker from '@/components/widgets/Sticker.astro'
       meta.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no')
     }
 
-    document.getElementById('sticker-reroll')?.addEventListener('click', () => {
-      location.reload()
-    })
+    const button = document.getElementById('sticker-reroll')
+    if (button && !button.dataset.bound) {
+      button.dataset.bound = 'true'
+      let rolling = 0
+      button.addEventListener('click', () => {
+        if (rolling) return
+        rolling = window.setTimeout(() => {
+          rolling = 0
+          button.classList.remove('is-rolling')
+        }, 700)
+        button.classList.add('is-rolling')
+        // The sticker layer owns the board; it redraws with a different set in
+        // place, so there is no page reload to sit through.
+        document.dispatchEvent(new Event('sticker:reroll'))
+      })
+    }
   })()
 </script>
 
@@ -43,6 +61,9 @@ import Sticker from '@/components/widgets/Sticker.astro'
     min-height: 0;
     overflow: hidden;
     overscroll-behavior: none;
+    /* no dragging a selection across the demo */
+    user-select: none;
+    -webkit-user-select: none;
   }
 
   html.sticker-show .page-content {
@@ -72,11 +93,32 @@ import Sticker from '@/components/widgets/Sticker.astro'
     letter-spacing: 0.02em;
     cursor: pointer;
     pointer-events: auto;
+    transition:
+      background 0.15s ease,
+      transform 0.12s ease,
+      opacity 0.2s ease;
   }
 
   #sticker-reroll:hover,
   #sticker-reroll:focus-visible {
     background: rgba(0, 0, 0, 0.8);
+  }
+
+  #sticker-reroll:active {
+    transform: scale(0.94);
+  }
+
+  /* the new set is being swapped in: no second click, and no reload spinner */
+  #sticker-reroll.is-rolling {
+    opacity: 0.45;
+    transform: scale(0.96);
+    cursor: default;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #sticker-reroll {
+      transition: none;
+    }
   }
 
   .sticker-show-actions p {

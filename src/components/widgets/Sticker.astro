@@ -625,7 +625,14 @@ const { count = 1, block, residue = 'fade' } = Astro.props as Props
   }
 
   document.addEventListener('astro:page-load', mount)
-  document.addEventListener('astro:before-swap', unmount)
+  // Leaving the page takes the layer with it. It was moved to <body>, which the
+  // router does not clean up for us, so a leftover copy would stay behind with
+  // its own board and its own sticker — independent stickers that each answer
+  // to their own pointer, and only one of which follows the layer.
+  document.addEventListener('astro:before-swap', () => {
+    unmount()
+    layerEl()?.remove()
+  })
   window.addEventListener('scroll', onScroll, { passive: true })
   window.addEventListener('resize', onResize)
   // Anyone can ask for a fresh draw; the show page's button does. Rebuilding the

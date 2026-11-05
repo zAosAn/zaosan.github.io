@@ -8,6 +8,7 @@
 /* Main content container */
 .prose {
   margin-bottom: 8rem;
+  font-family: var(--sans-cjk);
 }
 
 /* Remove margin-top for the first child */
@@ -123,7 +124,7 @@
 
 /* Italic text */
 .prose em {
-  font-family: var(--serif);
+  font-family: var(--serif-cjk);
   font-style: italic;
   letter-spacing: 0;
 }

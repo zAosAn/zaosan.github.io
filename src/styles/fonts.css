@@ -9,6 +9,20 @@
     U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+/* Chinese glyphs for post content only. The file is a subset (GB2312 level-1
+   plus every character used in src/), so Latin letters, digits and Latin
+   punctuation are absent on purpose: they keep using Inter. Rebuild it with
+   `python scripts/subset-cjk-font.py` after adding new posts. */
+@font-face {
+  font-family: 'TsangerJinKai03';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/TsangerJinKai03-W03-CJK.woff2') format('woff2');
+  unicode-range: U+00B7, U+2010-2027, U+3000-303F, U+4E00-9FFF, U+FE10-FE19, U+FE30-FE4F, U+FF01-FF0F,
+    U+FF1A-FF20, U+FF3B-FF40, U+FF5B-FF60, U+FFE0-FFE6;
+}
+
 @font-face {
   font-family: 'Besley';
   font-style: italic;

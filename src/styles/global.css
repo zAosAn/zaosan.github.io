@@ -23,8 +23,8 @@
      ships a single weight and font-synthesis is off, so Chinese headings can
      only be separated by size: the heading steps in post.css carry the
      hierarchy on their own. */
-  --prose-size: 1.125rem; /* 18px: body copy */
-  --prose-size-s: 0.9375rem; /* 15px: meta, captions, code */
+  --prose-size: 1rem; /* 16px: body copy */
+  --prose-size-s: 0.875rem; /* 14px: meta, captions, code */
 
   --font-weight-light: 350;
   --font-weight-regular: 400;

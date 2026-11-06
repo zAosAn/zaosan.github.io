@@ -19,6 +19,13 @@
   --font-size-m: 0.9375rem;
   --font-size-l: 1.0625rem;
 
+  /* Article body runs a step larger than the surrounding chrome. The kai face
+     ships a single weight and font-synthesis is off, so Chinese headings can
+     only be separated by size: the heading steps in post.css carry the
+     hierarchy on their own. */
+  --prose-size: 1.125rem; /* 18px: body copy */
+  --prose-size-s: 0.9375rem; /* 15px: meta, captions, code */
+
   --font-weight-light: 350;
   --font-weight-regular: 400;
   --font-weight-bold: 500;

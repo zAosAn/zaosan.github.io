@@ -31,6 +31,7 @@ import { themeConfig } from '@/config'
       if (!centeredLayout) {
         button.classList.remove('fixed-position')
         button.style.left = ''
+        document.documentElement.classList.remove('has-fixed-back')
         return
       }
 
@@ -53,6 +54,11 @@ import { themeConfig } from '@/config'
         button.classList.remove('fixed-position')
         button.style.left = ''
       }
+
+      // Post styles use this to draw the rule above the title only while the
+      // button sits in the flow (narrow layouts), and drop it once the button
+      // moves into the sidebar.
+      document.documentElement.classList.toggle('has-fixed-back', button.classList.contains('fixed-position'))
     }
 
     adjustBackButtonPosition()

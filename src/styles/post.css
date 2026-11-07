@@ -19,30 +19,72 @@
 /* Post title section */
 .prose .title {
   margin-bottom: 1.25rem;
+  /* Rule above the title, shown only while "index" sits above it (narrow
+     layouts). The button's script toggles `.has-fixed-back` on <html>. */
+  border-top: 0.5px solid var(--border);
+  padding-top: 1.25rem;
+}
+
+/* Keep "index" close to that rule while the button is in the flow. */
+.prose .back-button:not(.fixed-position) {
+  margin-bottom: 1em;
+}
+
+html.has-fixed-back .prose .title {
+  border-top: 0;
+  padding-top: 0;
 }
 
 .prose .title h1 {
   margin: 0 0 0.375rem 0;
   font-size: 1.75rem;
   line-height: 1.3;
+  letter-spacing: 0.05em;
 }
 
-/* Post date: smaller and aligned to the left edge of the content column. */
-.prose .title .date {
-  font-size: var(--prose-size-s);
-  text-align: left;
-}
-
-/* Tags sit under the date, matching its size and color. */
-.prose .title .post-tags {
-  margin: 0.4rem 0 0;
+/* Meta line: date • tags, sized like image captions. */
+.prose .title .meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.45em;
+  row-gap: 0.2em;
+  margin: 0;
+  /* Flush with the left edge, nudged 3px so the meta row still reads as a
+     separate line. */
+  padding-left: 3px;
   font-size: var(--prose-size-s);
   line-height: 1.5;
-  letter-spacing: var(--spacing-s);
   color: var(--text-secondary);
 }
 
-.prose .title .post-tags .post-tag {
+/* The date borrows the "index" button's serif italic. */
+.prose .title .meta time {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: var(--prose-size-s);
+  letter-spacing: 0;
+}
+
+.prose .title .meta .post-tags {
+  display: inline;
+  font-size: var(--prose-size-s);
+}
+
+/* "2026.11.05 • tags": the bullet is generated so no template whitespace can
+   widen the gap. */
+.prose .title .meta .post-tags::before {
+  content: '•';
+  margin: 0 0.45em 0 0.15em;
+  opacity: 0.55;
+}
+
+.prose .title .meta .reading-time {
+  font-size: var(--prose-size-s);
+}
+
+.prose .title .meta .post-tags .post-tag {
+  font-size: var(--prose-size-s);
   color: inherit;
   text-decoration: none;
   border-bottom: 0.5px solid transparent;
@@ -51,31 +93,35 @@
     border-color 0.15s ease-out;
 }
 
-.prose .title .post-tags .post-tag:hover,
-.prose .title .post-tags .post-tag:focus-visible {
+.prose .title .meta .post-tags .post-tag:hover,
+.prose .title .meta .post-tags .post-tag:focus-visible {
   color: var(--text-primary);
   border-bottom-color: var(--text-tertiary);
 }
 
-.prose .title .post-tags .tag-separator {
-  margin: 0 0.35em;
+/* Commas between tags are drawn in CSS, so template whitespace cannot add a
+   stray gap before them. Wrap the rule with the surrounding whitespace. */
+.prose .title .meta .post-tags .post-tag:not(:last-child)::after {
+  content: ',';
+  margin-right: 0.35em;
   opacity: 0.6;
 }
 
-/* Thin rule between the post header and the body. */
+/* Thin separator between the post header and the body: no rule, just "***". */
 .prose .title-rule {
   border: 0;
-  border-top: 0.5px solid var(--border);
-  margin: 1.25rem 0 2.5rem;
+  margin: 0.5rem 0 2.25rem;
 }
 
 /* Optional subtitle shown beneath the post title */
 .prose .title .subtitle {
-  margin: 0 0 0.75rem 0;
+  margin: 0 0 0.6rem 0;
+  /* Flush with the left edge, nudged 2px. */
+  padding-left: 2px;
   color: var(--text-secondary);
-  font-size: 0.95em;
+  font-size: var(--prose-size);
   font-weight: var(--font-weight-regular);
-  line-height: 1.5;
+  line-height: 1.6;
   letter-spacing: 0.02em;
 }
 

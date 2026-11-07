@@ -37,6 +37,15 @@ const shouldRenderCopyCode = themeConfig.post.copyCode && contentFeatures.hasCod
 const shouldRenderImageOptimizer = contentFeatures.hasContentImage
 const shouldRenderImageViewer = themeConfig.post.imageViewer && contentFeatures.hasContentImage
 const shouldRenderLinkCard = themeConfig.post.linkCard && contentFeatures.hasLinkCard
+const shownTags = displayTags(tags)
+
+// Tags are rendered through set:html so the template cannot leave stray spaces
+// inside the links (which would push the CSS comma away from the tag text).
+const escapeHtml = (value: string) =>
+  value.replace(
+    /[&<>"']/g,
+    (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] ?? char
+  )
 ---
 
 <BaseLayout title={`${title} · ${themeConfig.site.title}`} description={themeConfig.site.description} type="post">
@@ -55,7 +64,7 @@ const shouldRenderLinkCard = themeConfig.post.linkCard && contentFeatures.hasLin
         <div class="title">
           <h1>{title}</h1>
           {subtitle && <p class="subtitle">{subtitle}</p>}
-          <div class="date">
+          <p class="meta">
             <FormattedDate date={pubDate} context="post" />
             {themeConfig.post.readingTime && readingTime && (
               <span class="reading-time">
@@ -63,16 +72,13 @@ const shouldRenderLinkCard = themeConfig.post.linkCard && contentFeatures.hasLin
                 {readingTime.text}
               </span>
             )}
-          </div>
-          <p class="post-tags">
-            {displayTags(tags).map((tag, index) => (
-              <Fragment>
-                {index > 0 && <span class="tag-separator">,</span>}
-                <a class="post-tag" href={tagHref(tag)}>
-                  {tag}
-                </a>
-              </Fragment>
-            ))}
+            {shownTags.length > 0 && (
+              <span class="post-tags">
+                {shownTags.map((tag) => (
+                  <a class="post-tag" href={tagHref(tag)} set:html={escapeHtml(tag)} />
+                ))}
+              </span>
+            )}
           </p>
         </div>
         <hr class="title-rule" />

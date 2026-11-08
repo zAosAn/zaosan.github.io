@@ -129,7 +129,7 @@ We knew the only one who had not forsaken us as the “Ruler of Time.” She was
 
 <p class="translation" lang="zh-CN">唯一没有抛弃我们的那一位，她乃是「时间之执政」。她是时刻，是无时不刻，是千风与日月之度量。她是一切欢欣之时，一切愤怒之时，一切渴望之时，一切迷狂之时。她是一切谵妄的时刻。</p>
 
-<p class="translator-note" lang="zh-CN">※ 写得最爽的一段。英文用了 second/moment/instant/minute/flash 五个不同的时间表达，从微观到宏观、从客观到主观，一层层递进。</p>
+<p class="translator-note" lang="zh-CN">※ 英文用了 second/moment/instant/minute/flash 五个不同的时间表达，从微观到宏观、从客观到主观，一层层递进。</p>
 
 We call her Kairos, or “the ruler of the unchanging world.” We dare not speak her true, secret name, and so I pen it here, only once, and in reverse: “Htoratsi.”
 

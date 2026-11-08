@@ -1,6 +1,6 @@
 ---
-title: '别梨'
-subtitle: '茶，雨水，梨花和沙砾'
+title: '别梨花开'
+subtitle: '茶，雨水，梨花，沙'
 pubDate: '2026-11-05'
 tags: ['小说']
 ---
